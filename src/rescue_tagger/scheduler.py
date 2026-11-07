@@ -136,11 +136,18 @@ def _github_runs() -> tuple[list[str], dict[str, int], set[str]]:
     return active, failures, succeeded
 
 
+def _dirs(vol: Any) -> list[str]:
+    """Run directories only (champion.json and eval_reads.jsonl live at the root too)."""
+    from modal.volume import FileEntryType
+
+    return [e.path.strip("/") for e in vol.listdir("/") if e.type == FileEntryType.DIRECTORY]
+
+
 def _volume_state() -> tuple[dict[str, dict[str, Any]], list[str]]:
     import modal
 
     vol = modal.Volume.from_name(VOLUME)
-    dirs = [e.path.strip("/") for e in vol.listdir("/")]
+    dirs = _dirs(vol)
     decisions = {}
     for d in dirs:
         try:
@@ -156,8 +163,10 @@ def _dispatch(inputs: dict[str, str], ref: str) -> None:
 
 def tick(dry_run: bool = False) -> dict[str, Any]:
     queue = yaml.safe_load(QUEUE.read_text(encoding="utf-8"))
-    decisions, dirs = _volume_state()
+    # GitHub first: a run seen as succeeded has already committed its decision before the
+    # volume is read, so it can't look finished-without-a-decision by a timing accident.
     active, failures, succeeded = _github_runs()
+    decisions, dirs = _volume_state()
     # A run that succeeded before decisions existed (old pipeline) has none; only loop runs count.
     st = State(decisions, active, failures, dirs, {n for n in succeeded if n.startswith("loop-")})
     skipped: list[str] = []
@@ -184,7 +193,7 @@ def final(dry_run: bool = False) -> dict[str, Any]:
     day = time.strftime("%Y-%m-%d", time.gmtime())
     name = f"final-{day}"
     active, _, _ = _github_runs()
-    dirs = [e.path.strip("/") for e in vol.listdir("/")]
+    dirs = _dirs(vol)
     if name in dirs or name in active:
         return {"action": "wait", "why": f"{name} already scored"}
     if active:
