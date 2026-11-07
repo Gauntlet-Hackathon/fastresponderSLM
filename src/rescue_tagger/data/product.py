@@ -1,4 +1,4 @@
-"""Product team's hand-reviewed eval rows (sets C and D, train and dev splits only).
+"""Product team's hand-reviewed eval rows (sets B, C and D, train and dev splits only).
 
   data/product/rescue_eval_train_dev.jsonl  ->  training records (source "product")
 
@@ -20,8 +20,8 @@ Mapping from the row's gold `extracted` payload (the same schema infer.py emits)
 - people_count null (absent or conflicting counts) is the "not stated" class.
 - Rows that share a household (duplicate group) with a held-back test row are dropped at build
   time; a dev row sharing one with a train row is dropped here.
-- Spans were not labelled, so spans are unknown (null): the token head learns nothing from these
-  rows, never "no spans".
+- Set B rows have labelled spans and train the token head. Sets C and D were not labelled, so
+  their spans are unknown (null): the token head learns nothing from them, never "no spans".
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from rescue_tagger import labels as L
 from rescue_tagger.records import read_jsonl
 
 UNSURE = 0.5  # gold confidence below this marks a value the labeller was not sure of
+SPAN_SETS = {"B"}  # sets whose rows have labelled spans
 
 _ES = re.compile(r"[ñáéíóú¿¡]|\b(estamos|ayuda|necesit\w*|somos|mi|por favor|hay|casa|agua)\b",
                  re.I)
@@ -86,7 +87,36 @@ def to_record(row: dict[str, Any]) -> dict[str, Any]:
     }
     if soft:
         rec["soft_labels"] = soft
+    if row["set"] in SPAN_SETS:
+        rec["spans"], rec["span_unknown"] = _labelled_spans(row["raw_text"], g["spans"],
+                                                            labels["location_type"])
     return rec
+
+
+# Set B labels LOCATION, COUNT and TIME, but not every count or time, and never NEED_DURATION.
+# Unlabelled numbers and time phrases are left unknown to the token head (not taught as "O").
+_UNLABELLED = re.compile(
+    r"(?:\b(?:since|for|been out)\s+)?\b\d+\s*(?:am|pm|hours?|hrs?|days?|months?|years?(?: old)?"
+    r"|percent|kids?|adults?|people|toddlers?|of us)?\b"
+    r"|\b(?:this|last)\s+(?:morning|night|evening|afternoon)\b"
+    r"|\b(?:yesterday|tonight|today)\b", re.I)
+
+
+def _labelled_spans(text: str, gold: list[dict[str, Any]], location_type: str
+                    ) -> tuple[list[dict[str, Any]], list[dict[str, int]]]:
+    """Labelled spans to train on, plus character ranges the token head should not learn from."""
+    spans = [{k: s[k] for k in ("start", "end", "label")} for s in gold]
+    unknown: list[dict[str, int]] = []
+    if location_type == "none":
+        # The engine finds no usable location here, so its words are neither taught as a
+        # location nor as "O".
+        unknown += [{"start": s["start"], "end": s["end"]} for s in spans
+                    if s["label"] == "LOCATION"]
+        spans = [s for s in spans if s["label"] != "LOCATION"]
+    for m in _UNLABELLED.finditer(text):
+        if not any(s["start"] < m.end() and m.start() < s["end"] for s in spans):
+            unknown.append({"start": m.start(), "end": m.end()})
+    return spans, unknown
 
 
 def load(path: Path) -> list[dict[str, Any]]:
