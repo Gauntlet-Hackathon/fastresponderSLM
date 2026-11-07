@@ -37,7 +37,7 @@ jobs:
         run: |
           set -eo pipefail
           if [ -n "$TEXT" ]; then
-            modal run modal_jobs/train.py::sample --run "$RUN" --text "$TEXT" | tee "$RUNNER_TEMP/diagnose.txt"
+            modal run modal_jobs/train.py::sample --run "$RUN" --text="$TEXT" | tee "$RUNNER_TEMP/diagnose.txt"
           else
             modal run modal_jobs/train.py::diag --run "$RUN" | tee "$RUNNER_TEMP/diagnose.txt"
           fi

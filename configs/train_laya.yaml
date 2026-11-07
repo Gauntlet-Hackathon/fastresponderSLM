@@ -2,6 +2,9 @@
 backbone: convaiinnovations/laya-multilingual
 backbone_revision: 1720e3e3357cfe1e281542e223f8273b0890ca34   # pinned
 data_dir: data/processed
+# Bump when training/dev labels change (configs/data.yaml): runs on different label versions are
+# never compared, grouped for seed noise, or promoted over each other.
+data_version: 2
 out_dir: outputs/laya
 seed: 13
 max_length: 256

@@ -125,6 +125,8 @@ def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
         if rec["split"] != "test" and index.leaks(rec["text"]):
             dropped.append(rec["id"])
             continue
+        if not rec["labels"] and not rec.get("spans"):
+            continue  # every label was masked: the row would only dilute its source's share
         validate_record(rec)
         kept.append(rec)
 

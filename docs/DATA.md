@@ -29,7 +29,9 @@ Non-requests get `request_kind = other`. `dont_know_cant_judge` rows are dropped
 In train and dev, `is_request` is left unknown for `sympathy_and_support` and
 `rescue_volunteering_or_donation_effort`: those classes hold many real asks ("please send help,
 they have no water") labeled as not-a-request. Test and the Harvey hold-out keep upstream labels.
-Found from dev error examples (2026-11-07); fixed per category, never per example.
+Found from dev error examples (2026-11-07); fixed per category, never per example. Rows left with
+no labels at all are dropped. Train configs carry `data_version: 2` so runs on the old labels are
+never compared with these.
 
 **Synthetic.** A seeded RNG samples a spec (language, style, request or not, request kind, hazards,
 vulnerable people, needs with durations, location type, people count, time reference, contact,
