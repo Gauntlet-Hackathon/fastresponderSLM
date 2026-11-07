@@ -37,7 +37,7 @@ class State:
     decisions: dict[str, dict[str, Any]]  # run_name -> decision.json
     active: list[str]                      # run names queued or running on GitHub
     failures: dict[str, int]               # run name -> failed workflow attempts
-    run_dirs: list[str] = field(default_factory=list)  # top-level dirs on the volume
+    run_dirs: list[str] = field(default_factory=list)  # finished run dirs on the volume
     succeeded: set[str] = field(default_factory=set)   # run names whose workflow succeeded
 
 
@@ -124,9 +124,12 @@ def _github_runs() -> tuple[list[str], dict[str, int], set[str]]:
     active, failures, succeeded = [], {}, set()
     for r in runs:
         title = r.get("display_title", "")
-        if not title.startswith("train "):
+        if title == "train":  # launched before runs carried names; still counts while running
+            name = f"unnamed-{r['id']}"
+        elif title.startswith("train "):
+            name = title.split(" ", 1)[1]
+        else:
             continue
-        name = title.split(" ", 1)[1]
         if r["status"] in ("queued", "in_progress", "waiting", "requested", "pending"):
             active.append(name)
         elif r.get("conclusion") in ("failure", "timed_out", "cancelled"):
@@ -147,14 +150,17 @@ def _volume_state() -> tuple[dict[str, dict[str, Any]], list[str]]:
     import modal
 
     vol = modal.Volume.from_name(VOLUME)
-    dirs = _dirs(vol)
     decisions = {}
-    for d in dirs:
-        try:
+    finished = []
+    for d in _dirs(vol):
+        names = {e.path.rsplit("/", 1)[-1] for e in vol.listdir(d)}
+        # Only finished runs (result.json written at the very end) can be reused; a directory
+        # without it is still training, and its best/ is a mid-run checkpoint.
+        if "result.json" in names:
+            finished.append(d)
+        if "decision.json" in names:
             decisions[d] = json.loads(b"".join(vol.read_file(f"{d}/decision.json")))
-        except FileNotFoundError:  # no decision yet (running, failed, or old pipeline)
-            continue
-    return decisions, dirs
+    return decisions, finished
 
 
 def _dispatch(inputs: dict[str, str], ref: str) -> None:
