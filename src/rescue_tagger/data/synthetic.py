@@ -11,6 +11,12 @@ golden set B can be drafted by a different family (Claude) and checked by a pers
 
 Usage:
   python -m rescue_tagger.data.synthetic --n 200 --seed 1 --out data/synthetic/batches/b001.jsonl
+  python -m rescue_tagger.data.synthetic --focus --n 700 --seed 300000 --out .../b0003-focus.jsonl
+
+--focus samples the categories the earlier batches barely cover (counted from the training data,
+never from any eval set): powered medical devices without power (10 of 1,706 rows, and none also
+labeled medical although the rubric counts dependence on treatment as medical), one duration that
+covers several needs (14 rows), old posts (76) and vulnerable people described indirectly.
 Needs OPENAI_SLM_API_KEY (or OPENAI_API_KEY).
 """
 
@@ -89,6 +95,56 @@ class Spec:
     time_ref: bool = False
     contact: bool = False
     prompt_injection: bool = False
+    shared_duration: bool = False   # one stated duration covers every need
+    device: str | None = None       # the powered device, for medical_device_no_power
+
+
+# Powered medical devices (rubric: "a medical device that needs electricity").
+DEVICES = ("a home oxygen concentrator", "a CPAP machine", "a home dialysis machine",
+           "a ventilator", "a powered wheelchair that needs charging", "a nebulizer",
+           "an electric feeding pump", "a suction machine")
+FOCUS = ("medical_device", "shared_duration", "stale", "indirect_vulnerable")
+FOCUS_WEIGHTS = (35, 35, 15, 15)
+
+
+def sample_focus_spec(seed: int) -> Spec:
+    """A request built around one under-covered category (see --focus). Deterministic per seed;
+    the base spec supplies language, style, location and the rest."""
+    r = random.Random(f"focus:{seed}")
+    spec = sample_spec(seed)
+    focus = r.choices(FOCUS, weights=FOCUS_WEIGHTS)[0]
+    if not spec.is_request:
+        spec.is_request, spec.non_request_type = True, None
+        spec.request_kind = r.choices(L.REQUEST_KINDS, weights=(40, 20, 10, 25, 5))[0]
+    spec.is_stale_post = focus == "stale"
+    spec.time_ref = spec.time_ref or spec.is_stale_post
+    if spec.people_count is None and r.random() < 0.6:
+        spec.people_count = r.choices([1, 2, 3, 4, 5, 6, 7, 9], weights=(10, 25, 20, 15, 10,
+                                                                         8, 6, 6))[0]
+    if spec.people_count is not None:
+        spec.count_style = r.choice(["words", "words", "digits",
+                                     "implied by a phrase like 'me and my 2 kids'"])
+    if focus == "medical_device":
+        spec.device = r.choice(DEVICES)
+        spec.hazards = sorted(set(spec.hazards) | {"medical_device_no_power"})
+        # Depending on a powered device is dependence on treatment: the rubric's "medical".
+        spec.vulnerable = sorted(set(spec.vulnerable) | {"medical"})
+        if spec.request_kind == "other":
+            spec.request_kind = r.choice(["evacuation", "rescue"])
+    elif focus == "shared_duration":
+        kinds = r.sample(list(L.NEED_KINDS), r.choice([2, 2, 3]))
+        hours = r.choice([8, 12, 24, 36, 48, 72])
+        spec.needs = {k: hours for k in kinds}
+        spec.shared_duration = True
+        spec.request_kind = r.choice(["supply", "supply", "rescue", "evacuation"])
+    elif focus == "indirect_vulnerable":
+        spec.vulnerable = r.sample(list(L.VULNERABLE_KINDS), r.choice([1, 1, 2]))
+        spec.vulnerable_indirect = True
+    if spec.request_kind == "supply" and not spec.needs:
+        spec.needs = {r.choice(L.NEED_KINDS): r.choice([None, 24, 48])}
+    spec.vulnerable = [v for v in L.VULNERABLE_KINDS if v in spec.vulnerable]
+    spec.hazards = [h for h in L.HAZARD_KINDS if h in spec.hazards]
+    return spec
 
 
 def sample_spec(seed: int) -> Spec:
@@ -212,6 +268,10 @@ def build_prompt(spec: Spec) -> str:
                          "reference showing it is old (e.g. a past year or a past storm's name).")
     lines.append("Hazards to express (exactly these): "
                  + (", ".join(spec.hazards) if spec.hazards else "none"))
+    if spec.device:
+        lines.append(f"The medical device without power is {spec.device}; name or describe the "
+                     "device and make clear the power is out. The person who depends on it "
+                     "counts as the 'medical' vulnerable person.")
     if spec.vulnerable:
         how = ("indirectly, e.g. by age or condition rather than the category word"
                if spec.vulnerable_indirect else "clearly")
@@ -226,7 +286,14 @@ def build_prompt(spec: Spec) -> str:
             f"{k} ({f'for about {h} hours, say it naturally' if h else 'no duration'})"
             for k, h in spec.needs.items()
         ]
-        lines.append("Needs (things they are without): " + "; ".join(parts))
+        if spec.shared_duration:
+            h = next(iter(spec.needs.values()))
+            lines.append(f"Needs (things they are without): {', '.join(spec.needs)}, all for "
+                         f"about {h} hours. State the duration ONCE, in a single phrase that "
+                         "covers all of them (like 'no X or Y for N days'), not per item. Quote "
+                         "that same phrase as NEED_DURATION for each of these needs.")
+        else:
+            lines.append("Needs (things they are without): " + "; ".join(parts))
     else:
         lines.append("Needs: none (do not say they lack food, water or medicine)")
     loc = {
@@ -274,7 +341,9 @@ GEN_SCHEMA: dict[str, Any] = {
 VERIFY_SYSTEM = """You label messages sent to a flood rescue service. Read the message and report \
 only what it actually states about the sender's own situation (or the people they ask help for). \
 Do not guess. Hazards: rising_water, on_roof, injury, medical_device_no_power (a powered medical \
-device and no power), fire, trapped. Vulnerable: child, elderly, disabled, medical, pregnant. \
+device and no power), fire, trapped. Vulnerable: child, elderly, disabled, \
+medical (a medical condition or dependence on treatment, including relying on a powered medical \
+device), pregnant. \
 Needs: food, water, meds (they are without it). request_kind: rescue, evacuation, welfare_check, \
 supply, or other (use other for anything that is not a request). is_request is false for news, \
 offers of help, general questions and venting. is_stale_post is true when the post is clearly from \
@@ -424,9 +493,10 @@ def _call_json(client, model: str, system: str, user: str, schema: dict, name: s
     return json.loads(resp.choices[0].message.content)
 
 
-def generate_one(client, seed: int, gen_model: str, verify_model: str | None) -> dict[str, Any]:
+def generate_one(client, seed: int, gen_model: str, verify_model: str | None,
+                 focus: bool = False) -> dict[str, Any]:
     """Returns {"record": ...} on success or {"seed", "error"} when the row is rejected."""
-    spec = sample_spec(seed)
+    spec = sample_focus_spec(seed) if focus else sample_spec(seed)
     try:
         gen = _call_json(client, gen_model, GEN_SYSTEM, build_prompt(spec), GEN_SCHEMA, "message")
         rec = build_record(spec, gen, gen_model)
@@ -451,13 +521,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--verify-model", default=DEFAULT_VERIFY_MODEL,
                     help="blind labeler; pass '' to skip verification")
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--focus", action="store_true",
+                    help="sample the under-covered categories (see the module docstring)")
     args = ap.parse_args(argv)
 
     client = _client()
     seeds = range(args.seed, args.seed + args.n)
     with ThreadPoolExecutor(args.workers) as pool:
         results = list(pool.map(
-            lambda s: generate_one(client, s, args.gen_model, args.verify_model or None), seeds))
+            lambda s: generate_one(client, s, args.gen_model, args.verify_model or None,
+                                   args.focus), seeds))
     kept = [r["record"] for r in results if "record" in r]
     rejected = [r for r in results if "record" not in r]
     write_jsonl(args.out, kept)

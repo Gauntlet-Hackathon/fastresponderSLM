@@ -86,3 +86,19 @@ def test_committed_sample_rows_are_valid():
     for rec in rows:
         validate_record(rec)
         assert rec["source"] == "synthetic" and rec["meta"]["generator"].startswith("gpt")
+
+
+def test_focus_specs_follow_the_rubric():
+    from rescue_tagger.data.synthetic import build_prompt, sample_focus_spec
+
+    specs = [sample_focus_spec(s) for s in range(300000, 300400)]
+    assert [sample_focus_spec(300007)] == [specs[7]]
+    dev = [s for s in specs if s.device]
+    assert dev and all("medical_device_no_power" in s.hazards and "medical" in s.vulnerable
+                       for s in dev)
+    shared = [s for s in specs if s.shared_duration]
+    assert shared and all(len(s.needs) >= 2 and len(set(s.needs.values())) == 1 for s in shared)
+    assert "State the duration ONCE" in build_prompt(shared[0])
+    assert all(s.is_request for s in specs)
+    assert all(s.needs for s in specs if s.request_kind == "supply")
+    assert any(s.is_stale_post for s in specs)

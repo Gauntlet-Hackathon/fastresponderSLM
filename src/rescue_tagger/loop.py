@@ -33,6 +33,9 @@ ECE_NOISE = 0.5       # ECE standard error is roughly ECE_NOISE / sqrt(n) for 10
 MAX_ECE_TOL = 0.05    # the ECE-rise allowance never exceeds this
 MAX_DROP_TOL = 0.08   # nor the critical-drop allowance
 MAX_LATENCY_MS = 100.0
+# Data versions whose real-text dev rows and labels are identical (v3 only added a synthetic batch),
+# so a run on the newer version must not lose real-text score to the older champion.
+REAL_DEV_SAME = {(2, 3)}
 GAP_TOLERANCE = 0.01
 # One bad seed can inflate the measured spread; cap the bar so the loop does not reject everything.
 MAX_NEED = 0.02
@@ -183,12 +186,23 @@ def compare(candidate: Path, champion: Path, runs_dir: Path | None = None,
     result = json.loads(candidate.read_text())
     cand = summarize(result)
     champ = json.loads(champion.read_text()) if champion.exists() else None
+    floor_fail = None
     if champ is not None and champ.get("data_version") != cand["data_version"]:
         # Scores on different dev labels aren't comparable; the first run on the new labels
-        # becomes the baseline (the old champion stays on record in its decision).
+        # becomes the baseline (the old champion stays on record in its decision). When only the
+        # synthetic rows changed, real text still is: the new baseline must hold the old score.
+        if (champ.get("data_version"), cand["data_version"]) in REAL_DEV_SAME:
+            old_spread = seed_spread(champ, runs_dir)
+            tol = min(max(MAX_DROP, 2 * old_spread), MAX_NEED) if old_spread else MAX_DROP
+            c, b = cand["real_score"], champ.get("real_score")
+            if c is not None and b is not None and b - c > tol:
+                floor_fail = (f"real-text score {c} vs {b} on the previous data version: "
+                              f"drop {b - c:.4f} is past {tol:.4f}")
         champ = None
     spread = seed_spread(cand, runs_dir)
     ok, reasons = gates(cand, champ, spread)
+    if floor_fail:
+        ok, reasons = False, [r for r in reasons if "baseline" not in r] + [floor_fail]
     if result["config"].get("purpose") == "seed" and ok:
         # A seed repeat measures run-to-run noise; promoting the luckiest seed would bake that
         # noise into the bar every later run has to beat.

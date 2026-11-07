@@ -33,6 +33,15 @@ Found from dev error examples (2026-11-07); fixed per category, never per exampl
 no labels at all are dropped. Train configs carry `data_version: 2` so runs on the old labels are
 never compared with these.
 
+**Version 3 (2026-11-07).** Adds `b0003-focus`, a synthetic batch for categories the first batches
+barely covered, counted from the training data and never from any eval set: powered medical devices
+without power (10 of 1,706 rows, none also labeled `medical`, though the rubric counts dependence on
+treatment as medical), one duration covering several needs (14 rows), old posts (76) and vulnerable
+people described indirectly. 188 rows kept of 261 tried (72%; the remaining 439 seeds were
+not tried because the OpenAI credits ran out): 51 device, 82 shared-duration, 30 old-post and 52
+indirect rows. Real-text dev is unchanged, so the first v3 run must hold the v2
+champion's real-text score (`REAL_DEV_SAME` in `loop.py`) before it becomes the v3 baseline.
+
 **Synthetic.** A seeded RNG samples a spec (language, style, request or not, request kind, hazards,
 vulnerable people, needs with durations, location type, people count, time reference, contact,
 prompt injection). `gpt-5.5` writes a message expressing exactly that spec and quotes the span

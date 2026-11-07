@@ -238,3 +238,18 @@ def test_latency_is_the_fastest_of_repeated_medians():
     rep = E.evaluate(Ex(), rows, consistency_n=0)
     assert rep["latency_median_ms"] < 10 < rep["latency_first_pass_ms"]
     assert "x" in rep["cpu"]
+
+
+def test_new_synthetic_version_must_hold_the_real_text_score(tmp_path):
+    old = _result("old", real=0.85)
+    old["config"]["data_version"] = 2
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(summarize(old)))
+    for name, real, want in (("worse", 0.80, False), ("held", 0.845, True)):
+        new = _result(name, real=real)
+        new["config"]["data_version"] = 3
+        (tmp_path / f"{name}.json").write_text(json.dumps(new))
+        d = compare(tmp_path / f"{name}.json", champ, None)
+        assert d["promote"] is want, d["reasons"]
+        if not want:
+            assert any("previous data version" in r for r in d["reasons"])
