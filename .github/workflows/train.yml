@@ -62,7 +62,7 @@ jobs:
           if [ "$PUBLISH" = "true" ]; then PUBLISH_FLAG="--publish"; fi
           FINAL_FLAG=""
           if [ "$FINAL" = "true" ]; then FINAL_FLAG="--final"; fi
-          modal run modal_jobs/train.py --config "$CONFIG" --overrides "$OVERRIDES" \
+          modal run modal_jobs/train.py::main --config "$CONFIG" --overrides "$OVERRIDES" \
             --reuse "$REUSE" --run-name "$RUN_NAME" $PUBLISH_FLAG $FINAL_FLAG \
             | tee "$RUNNER_TEMP/result.txt"
       - uses: actions/upload-artifact@v4

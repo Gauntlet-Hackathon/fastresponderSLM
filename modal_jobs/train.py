@@ -1,6 +1,7 @@
 """Run the full training pipeline on a Modal GPU.
 
-  modal run modal_jobs/train.py --config configs/train_laya.yaml [--publish]
+  modal run modal_jobs/train.py::main --config configs/train_laya.yaml [--publish]
+  modal run modal_jobs/train.py::diag --run <run name>
 
 Launched by .github/workflows/train.yml (repo secrets MODAL_TOKEN_ID, MODAL_TOKEN_SECRET, HF_TOKEN).
 Steps inside the container: build data -> train -> calibrate on one half of dev -> score on the
@@ -143,3 +144,47 @@ def main(config: str, run_name: str = "", publish: bool = False, overrides: str 
     result = pipeline.remote(config, name, publish, overrides.split() if overrides else [],
                              final, reuse)
     print(json.dumps(result, indent=2))
+
+
+@app.function(cpu=8, timeout=2 * 60 * 60, volumes={"/runs": runs},
+              secrets=[modal.Secret.from_dict({"HF_TOKEN": os.environ.get("HF_TOKEN", "")})])
+def diagnose_run(run: str) -> dict:
+    """Request-detector deep check for a finished run: aggregates only on test and Harvey (logged
+    as eval reads), plus example errors from dev, which is safe to read."""
+    import json
+    import subprocess
+
+    from rescue_tagger.loop import log_eval_read
+
+    os.chdir(REMOTE_ROOT)
+
+    def sh(*cmd: str) -> None:
+        print("+", " ".join(cmd), flush=True)
+        subprocess.run(cmd, check=True)
+
+    sh("git", "clone", "--depth", "1",
+       "https://github.com/Gauntlet-Hackathon/gauntletvshackathon", "/tmp/eval_repo")
+    sh("python", "-m", "rescue_tagger.data.build", "--config", "configs/data.yaml")
+    best, out = f"/runs/{run}/best", f"/runs/{run}"
+    report = {}
+    for name, data, extra in (("harvey", "data/processed/harvey.jsonl", []),
+                              ("test_munro", "data/processed/test.jsonl", ["--source", "munro"]),
+                              ("test_humaid", "data/processed/test.jsonl", ["--source", "humaid"]),
+                              ("dev_munro", "data/processed/dev.jsonl",
+                               ["--source", "munro", "--show-errors", "40"]),
+                              ("dev_humaid", "data/processed/dev.jsonl",
+                               ["--source", "humaid", "--show-errors", "40"])):
+        sh("python", "-m", "rescue_tagger.diagnose", best, "--data", data, *extra,
+           "--out", f"{out}/diagnose_{name}.json")
+        report[name] = json.loads(Path(f"{out}/diagnose_{name}.json").read_text())
+        if name.startswith(("harvey", "test")):
+            log_eval_read(Path("/runs/eval_reads.jsonl"), f"diagnose:{run}", name)
+    runs.commit()
+    return report
+
+
+@app.local_entrypoint()
+def diag(run: str) -> None:
+    import json
+
+    print(json.dumps(diagnose_run.remote(run), indent=2, ensure_ascii=False))
