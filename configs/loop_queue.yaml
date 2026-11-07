@@ -73,7 +73,8 @@ items:
   # Data v10: + Opus rubric labels for 2,500 real Munro/HumAID TRAIN tweets (source distill, 13%
   # of each epoch), replacing their original rows. Same loss weighting as v9, plus a seed repeat.
   # (Paawan 20:47: remaining lr/epoch/mmBERT items dropped to finish sooner.)
-  - {name: laya-v10, config: configs/train_laya.yaml, purpose: baseline,
+  # laya-v10 failed twice on a reset connection while downloading HumAID (fixed: retries); rerun.
+  - {name: laya-v10b, config: configs/train_laya.yaml, purpose: baseline,
      overrides: {lr_encoder: 5.0e-5, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
   - {name: laya-v10-seed7, config: configs/train_laya.yaml, purpose: seed,
      overrides: {lr_encoder: 5.0e-5, seed: 7, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
