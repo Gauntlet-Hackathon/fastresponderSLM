@@ -15,7 +15,10 @@ def test_every_product_row_maps_to_a_valid_record_and_no_test_rows_are_in_the_re
     recs = load(DATA)
     for r in recs:
         validate_record(r)
-        assert r["spans"] is None  # spans were not labelled: unknown, never "no spans"
+        if r["meta"]["set"] == "B":
+            assert isinstance(r["spans"], list)  # labelled spans train the token head
+        else:
+            assert r["spans"] is None  # not labelled: unknown, never "no spans"
     assert {r["split"] for r in recs} == {"train", "dev"}
 
 

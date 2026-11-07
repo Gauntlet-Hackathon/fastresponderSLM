@@ -1,4 +1,4 @@
-"""Product team's hand-reviewed eval rows (sets C and D, train and dev splits only).
+"""Product team's hand-reviewed eval rows (sets B, C and D, train and dev splits only).
 
   data/product/rescue_eval_train_dev.jsonl  ->  training records (source "product")
 
@@ -20,8 +20,8 @@ Mapping from the row's gold `extracted` payload (the same schema infer.py emits)
 - people_count null (absent or conflicting counts) is the "not stated" class.
 - Rows that share a household (duplicate group) with a held-back test row are dropped at build
   time; a dev row sharing one with a train row is dropped here.
-- Spans were not labelled, so spans are unknown (null): the token head learns nothing from these
-  rows, never "no spans".
+- Set B rows have labelled spans and train the token head. Sets C and D were not labelled, so
+  their spans are unknown (null): the token head learns nothing from them, never "no spans".
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from rescue_tagger import labels as L
 from rescue_tagger.records import read_jsonl
 
 UNSURE = 0.5  # gold confidence below this marks a value the labeller was not sure of
+SPAN_SETS = {"B"}  # sets whose rows have labelled spans
 
 _ES = re.compile(r"[ñáéíóú¿¡]|\b(estamos|ayuda|necesit\w*|somos|mi|por favor|hay|casa|agua)\b",
                  re.I)
@@ -78,7 +79,9 @@ def to_record(row: dict[str, Any]) -> dict[str, Any]:
         "source": "product",
         "split": row["split"],
         "labels": labels,
-        "spans": None,
+        # Set B rows carry labelled spans (LOCATION, COUNT, TIME); sets C and D were not labelled.
+        "spans": ([{k: s[k] for k in ("start", "end", "label")} for s in g["spans"]]
+                  if row["set"] in SPAN_SETS else None),
         "people_count": g["people_count"]["value"] or None,
         "need_hours": {n["kind"]: n.get("hours_without") for n in g["needs"]},
         "meta": {"set": row["set"], "product_id": row["id"],

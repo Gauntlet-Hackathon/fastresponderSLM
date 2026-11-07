@@ -1,4 +1,4 @@
-"""Score a checkpoint on the product team's dev rows (sets C and D), head by head.
+"""Score a checkpoint on the product team's dev rows (sets B, C and D), head by head.
 
   python -m rescue_tagger.product_eval --model hf:paawandesai/rescue-tagger@<sha> [--model ...]
 
@@ -11,6 +11,8 @@ row's gold `extracted` payload, read the same way the trainer reads it (rescue_t
   location); `invented_location` counts rows with no usable location where we gave one.
 - hazards, vulnerable, needs: micro F1 over kinds at confidence >= 0.5; a hazard the labeller was
   unsure of is left out of both sides.
+- location_span: on rows with a labelled LOCATION span (set B), the location text we return is
+  exactly that span (case-insensitive).
 - p1_critical_kept: on gold P1 rows, every hazard and vulnerable kind the labeller marked is
   reported at >= 0.5 (a dropped one can cost the P1 rank).
 """
@@ -43,7 +45,7 @@ def _f1(tp: int, fp: int, fn: int) -> float | None:
 def score(rows: list[dict[str, Any]], preds: list[dict[str, Any]]) -> dict[str, Any]:
     acc: dict[str, list[bool]] = {k: [] for k in ("is_request", "unsure_flagged", "location_type",
                                                   "request_kind", "people_count", "is_stale_post",
-                                                  "p1_critical_kept")}
+                                                  "p1_critical_kept", "location_span")}
     f1c = {h: [0, 0, 0] for h in ("hazards", "vulnerable", "needs")}
     invented = joke_true = 0
     for row, pay in zip(rows, preds, strict=True):
@@ -57,6 +59,12 @@ def score(rows: list[dict[str, Any]], preds: list[dict[str, Any]]) -> dict[str, 
             joke_true += (not unsure) and pay["is_request"]["value"]
         acc["location_type"].append(pay["location"]["type"] == lab["location_type"])
         invented += lab["location_type"] == "none" and pay["location"]["type"] != "none"
+        gold_loc = [s for s in (rec["spans"] or []) if s["label"] == "LOCATION"]
+        if gold_loc and lab["location_type"] != "none":  # set B: labelled location span
+            s = gold_loc[0]
+            acc["location_span"].append(
+                (pay["location"]["text"] or "").strip().lower()
+                == row["raw_text"][s["start"]:s["end"]].strip().lower())
         acc["request_kind"].append(pay["request_kind"] == lab["request_kind"])
         acc["people_count"].append(pay["people_count"]["value"] == (rec["people_count"] or None))
         acc["is_stale_post"].append(pay["time_ref"]["is_stale_post"] == lab["is_stale_post"])
