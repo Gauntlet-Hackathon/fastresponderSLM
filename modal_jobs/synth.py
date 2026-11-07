@@ -27,8 +27,10 @@ VERIFY_MODEL = "microsoft/phi-4"            # MIT, a different family from the g
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    .pip_install("vllm==0.10.2", "openai>=1.40", "jsonschema>=4.23", "referencing>=0.35",
-                 "pyyaml>=6.0")
+    # vLLM 0.10.2 reads tokenizer attributes that transformers 5 removed
+    # (all_special_tokens_extended), so pin the 4.x line it was built against.
+    .pip_install("vllm==0.10.2", "transformers==4.56.2", "openai>=1.40", "jsonschema>=4.23",
+                 "referencing>=0.35", "pyyaml>=6.0")
     .env({"PYTHONPATH": f"{REMOTE_ROOT}/src", "HF_HUB_ENABLE_HF_TRANSFER": "0"})
     .add_local_dir(REPO_ROOT, REMOTE_ROOT, ignore=[".venv", ".git", "outputs", "data/raw",
                                                      "data/processed", "**/__pycache__"])
