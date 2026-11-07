@@ -14,7 +14,7 @@ on:
         description: "Specs to try"
         default: "30"
       seed:
-        description: "First seed"
+        description: "First seed (use a fresh range per batch: ids are model + seed; vague 320000+)"
         default: "300000"
       mode:
         description: "focus = under-covered categories; vague = too vague to call; plain = base mix"

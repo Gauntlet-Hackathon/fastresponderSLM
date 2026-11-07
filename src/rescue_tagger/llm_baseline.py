@@ -159,7 +159,8 @@ OUTPUT_RULE = "Reply with the JSON object only."
 def few_shots(train: Path = Path("data/processed/train.jsonl"), k: int = 7) -> list[dict]:
     """Seven synthetic TRAIN rows covering every request kind, a non-request and an old post,
     picked by a fixed hash of the id (never by how any model does on them)."""
-    rows = [r for r in read_jsonl(train) if r["source"] == "synthetic" and r.get("gold_extracted")]
+    rows = [r for r in read_jsonl(train) if r["source"] == "synthetic" and r.get("gold_extracted")
+            and not r.get("soft_labels")]  # a vague row has no confident answer to show
     rows.sort(key=lambda r: hashlib.sha1(f"fewshot:{r['id']}".encode()).hexdigest())
     want = [lambda r: r["labels"]["request_kind"] == "rescue" and r["lang"] == "en",
             lambda r: r["labels"]["request_kind"] == "evacuation",

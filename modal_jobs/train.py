@@ -273,9 +273,14 @@ def publish_run(run: str, final_run: str = "") -> dict:
         res = json.loads(Path(f"/runs/{final_run}/result.json").read_text())
         if res.get("reused_weights_from") != run:
             raise ValueError(f"{final_run} did not score {run}'s weights")
-        reports.update({f"final:{k}": v for k, v in res["eval"].items()
-                        if not k.startswith("dev_")})
-    out = publish(Path(f"/runs/{run}/best"), run_name=run, eval_reports=reports)
+        tests = {f"final:{k}": v for k, v in res["eval"].items() if not k.startswith("dev_")}
+        if not tests:
+            raise ValueError(f"{final_run} has no test-set reads (not a final run)")
+        reports.update(tests)
+    # With a final run, publish its copy: same weights, and the calibration the card's test
+    # numbers were measured with.
+    src = Path(f"/runs/{final_run or run}/best")
+    out = publish(src, run_name=run, eval_reports=reports)
     runs.commit()
     return out
 

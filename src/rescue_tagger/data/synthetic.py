@@ -495,7 +495,7 @@ def build_record(spec: Spec, gen: dict[str, Any], model: str) -> dict[str, Any]:
     if spec.vague:
         del rec["labels"]["is_request"], rec["labels"]["request_kind"]
         rec["soft_labels"] = {"is_request": 0.5}
-        gold["is_request"] = {"value": False, "confidence": 0.5}
+        gold["is_request"] = {"value": True, "confidence": 0.5}  # p = 0.5 reads as True
     validate_record(rec)
     return rec
 

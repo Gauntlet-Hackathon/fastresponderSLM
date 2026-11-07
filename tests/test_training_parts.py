@@ -154,3 +154,12 @@ def test_soft_labels_train_toward_unsure_and_are_validated():
         validate_record({**rec, "labels": {"is_request": True}})
     with pytest.raises(ValueError):
         validate_record({**rec, "soft_labels": {"is_request": 1.5}})
+
+
+
+def test_calibration_ignores_soft_targets():
+    from rescue_tagger.calibrate import fit_mask
+
+    d = {"target:is_request_mask": torch.tensor([1.0, 1.0, 1.0, 0.0]),
+         "target:is_request": torch.tensor([1.0, 0.0, 0.5, 0.0])}
+    assert fit_mask(d, "is_request").tolist() == [True, True, False, False]
