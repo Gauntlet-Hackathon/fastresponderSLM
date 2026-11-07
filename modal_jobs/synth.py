@@ -43,7 +43,7 @@ runs = modal.Volume.from_name("rescue-tagger-runs", create_if_missing=True)
 hf_cache = modal.Volume.from_name("rescue-tagger-hf-cache", create_if_missing=True)
 app = modal.App("rescue-synth", image=image)
 PORT = 8000
-MODES = {"focus": ["--focus"], "vague": ["--vague"], "plain": []}
+MODES = {"focus": ["--focus"], "vague": ["--vague"], "hoax": ["--hoax"], "plain": []}
 
 
 def stop(proc: subprocess.Popen) -> None:

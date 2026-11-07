@@ -103,6 +103,7 @@ class Spec:
     shared_duration: bool = False   # one stated duration covers every need
     device: str | None = None       # the powered device, for medical_device_no_power
     vague: bool = False             # too vague to call: is_request is a soft 0.5, never scored
+    hoax: bool = False              # reads like a request but may be a prank: soft 0.5 as well
 
 
 # Powered medical devices (rubric: "a medical device that needs electricity").
@@ -178,6 +179,29 @@ def sample_vague_spec(seed: int) -> Spec:
     if spec.location_type == "coords":
         spec.location_type, spec.location_hint = "none", None
     spec.vague = True
+    return spec
+
+
+HOAX_SIGNS = (
+    "an impossible or absurd detail (a shark in the living room, a pet dinosaur)",
+    "'lol', 'jk' or laughing emojis next to the plea",
+    "meme or copypasta phrasing",
+    "a friend tagging someone else as a joke ('come rescue @dave from his cooking')",
+    "a celebrity or fictional character named as the person in danger",
+    "an over-the-top tone that might be sarcasm",
+)
+
+
+def sample_hoax_spec(seed: int) -> Spec:
+    """A message that reads like a rescue request but carries signs it may be a prank (rubric:
+    pranks and unclear posts get low is_request confidence, never a confident yes). The stated
+    details (place, people, hazards) are labeled as written; is_request is a soft 0.5."""
+    r = random.Random(f"hoax:{seed}")
+    spec = sample_spec(seed)
+    spec.is_request, spec.non_request_type, spec.is_stale_post = True, None, False
+    spec.prompt_injection, spec.vague = False, False
+    spec.hoax = True
+    spec.style = f"{spec.style}; hoax sign: {r.choice(HOAX_SIGNS)}"
     return spec
 
 
@@ -280,6 +304,11 @@ def build_prompt(spec: Spec) -> str:
             "vi": "Vietnamese (as written by Vietnamese speakers in Houston; street and place "
                   "names stay as they are written in English)"}[spec.lang]
     lines = [f"Language: {lang}.", f"Writing style: {spec.style}."]
+    if spec.hoax:
+        lines.append("Message type: something that reads like a rescue request but shows signs it "
+                     "may be a prank or a joke (see the hoax sign in the writing style). Keep it "
+                     "ambiguous: a careful dispatcher could not be sure whether it is real. Still "
+                     "state every detail listed below exactly as given.")
     if spec.vague:
         lines.append("Message type: something a person might post during the flood that is TOO "
                      "VAGUE to tell whether they need help: a fragment, a bare place, a feeling, "
@@ -524,7 +553,7 @@ def build_record(spec: Spec, gen: dict[str, Any], model: str) -> dict[str, Any]:
         "gold_extracted": gold,
         "meta": {"generator": model, "spec": asdict(spec)},
     }
-    if spec.vague:
+    if spec.vague or spec.hoax:
         del rec["labels"]["is_request"], rec["labels"]["request_kind"]
         rec["soft_labels"] = {"is_request": 0.5}
         gold["is_request"] = {"value": True, "confidence": 0.5}  # p = 0.5 reads as True
@@ -569,8 +598,12 @@ def apply_verdict(rec: dict[str, Any], v: dict[str, Any], verify_model: str
     diffs = _diffs(rec, v)
     heads = [h for h, _ in diffs]
     rec["meta"]["verifier"] = verify_model
-    if _is_vague(rec) and v.get("help") != "cannot_tell":
-        return {"seed": seed, "error": f"verify: vague row read as help={v.get('help')}",
+    hoax = rec["meta"]["spec"].get("hoax")
+    # A possible prank may read as "no help" (it is a joke) or "cannot tell", never as a real plea.
+    allowed = ("cannot_tell", "no_help") if hoax else ("cannot_tell",)
+    if _is_vague(rec) and v.get("help") not in allowed:
+        kind = "hoax" if hoax else "vague"
+        return {"seed": seed, "error": f"verify: {kind} row read as help={v.get('help')}",
                 "text": rec["text"]}
     if "is_request" in heads or len(heads) > MAX_MASKED:
         return {"seed": seed, "error": "verify: " + "; ".join(m for _, m in diffs),
@@ -618,10 +651,10 @@ def _call_json(client, model: str, system: str, user: str, schema: dict, name: s
 
 
 def generate_one(client, seed: int, gen_model: str, verify_model: str | None,
-                 focus: bool = False, vague: bool = False) -> dict[str, Any]:
+                 focus: bool = False, vague: bool = False, hoax: bool = False) -> dict[str, Any]:
     """Returns {"record": ...} on success or {"seed", "error"} when the row is rejected."""
-    spec = (sample_vague_spec(seed) if vague else sample_focus_spec(seed) if focus
-            else sample_spec(seed))
+    spec = (sample_hoax_spec(seed) if hoax else sample_vague_spec(seed) if vague
+            else sample_focus_spec(seed) if focus else sample_spec(seed))
     try:
         gen = _call_json(client, gen_model, GEN_SYSTEM, build_prompt(spec), GEN_SCHEMA, "message")
         rec = build_record(spec, gen, gen_model)
@@ -653,6 +686,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="sample the under-covered categories (see the module docstring)")
     ap.add_argument("--vague", action="store_true",
                     help="messages too vague to call (soft is_request 0.5; see sample_vague_spec)")
+    ap.add_argument("--hoax", action="store_true",
+                    help="requests that may be pranks (soft is_request 0.5; see sample_hoax_spec)")
     ap.add_argument("--verify-file", type=Path, default=None,
                     help="only check the records in this file with --verify-model")
     args = ap.parse_args(argv)
@@ -670,7 +705,7 @@ def main(argv: list[str] | None = None) -> int:
             seeds = range(args.seed, args.seed + args.n)
             results = list(pool.map(
                 lambda s: generate_one(client, s, args.gen_model, args.verify_model or None,
-                                       args.focus, args.vague), seeds))
+                                       args.focus, args.vague, args.hoax), seeds))
     kept = [r["record"] for r in results if "record" in r]
     rejected = [r for r in results if "record" not in r]
     write_jsonl(args.out, kept)
