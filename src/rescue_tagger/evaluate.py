@@ -43,7 +43,7 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
     stats: dict[str, Any] = {h: {"correct": 0, "n": 0} for h in
                              ("is_request", "is_stale_post", "request_kind", "location_type",
                               "people_count")}
-    multi = {h: {"tp": 0, "fp": 0, "fn": 0} for h in L.MULTI_LABEL_HEADS}
+    multi = {h: {"tp": 0, "fp": 0, "fn": 0, "n": 0} for h in L.MULTI_LABEL_HEADS}
     loc = {"exact": 0, "partial": 0, "n": 0}
     conf: dict[str, list[tuple[float, bool]]] = {h: [] for h in ("is_request", "location",
                                                                   "hazards", "vulnerable")}
@@ -96,6 +96,7 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
                 pred = {i["kind"] for i in items if i["confidence"] >= 0.5}
                 for i in items:
                     conf[head].append((i["confidence"], i["kind"] in gold))
+            multi[head]["n"] += 1
             multi[head]["tp"] += len(pred & gold)
             multi[head]["fp"] += len(pred - gold)
             multi[head]["fn"] += len(gold - pred)
@@ -118,6 +119,7 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
     for h, s in multi.items():
         if s["tp"] + s["fp"] + s["fn"]:
             report[f"{h}_f1"] = round(f1(s["tp"], s["fp"], s["fn"]), 4)
+            report[f"{h}_n"] = s["n"]  # rows labeled for this head (the selection gates' noise)
     if loc["n"]:
         report["location_exact"] = round(loc["exact"] / loc["n"], 4)
         report["location_partial"] = round(loc["partial"] / loc["n"], 4)

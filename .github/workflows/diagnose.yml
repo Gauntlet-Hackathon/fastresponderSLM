@@ -12,6 +12,11 @@ on:
         description: "If set, print one extracted payload for this message instead of the deep check"
         required: false
         default: ""
+      compare:
+        description: "Instead, score the run against the stored Opus outputs (results/llm/)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -34,9 +39,13 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           RUN: ${{ inputs.run }}
           TEXT: ${{ inputs.text }}
+          COMPARE: ${{ inputs.compare }}
         run: |
           set -eo pipefail
-          if [ -n "$TEXT" ]; then
+          if [ "$COMPARE" = "true" ]; then
+            modal run modal_jobs/train.py::compare --run "$RUN" | tee "$RUNNER_TEMP/diagnose.txt"
+            cat "$RUNNER_TEMP/diagnose.txt" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$TEXT" ]; then
             modal run modal_jobs/train.py::sample --run "$RUN" --text="$TEXT" | tee "$RUNNER_TEMP/diagnose.txt"
           else
             modal run modal_jobs/train.py::diag --run "$RUN" | tee "$RUNNER_TEMP/diagnose.txt"

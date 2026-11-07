@@ -26,6 +26,7 @@ sources:
 # Point EVAL_REPO at a checkout of Gauntlet-Hackathon/gauntletvshackathon to protect its eval sets.
 protected_texts:
   - tests/fixtures/contract_cases.jsonl
+  - evals/edge_cases.jsonl
   - $EVAL_REPO/evals/sets/*.jsonl
   - $EVAL_REPO/evals/drafts/*.jsonl
 leak_threshold: 0.5

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import statistics
 import time
 from pathlib import Path
@@ -24,6 +25,13 @@ MAX_DROP = 0.01
 MIN_GAIN = 0.005
 MAX_ECE = 0.10        # absolute ceiling on any field's calibration error
 MAX_ECE_RISE = 0.02   # and no field may get worse than the current best by more than this
+# Small dev slices are noisy: one flipped row out of 72 moves accuracy 1.4 points. A drop or rise
+# counts only past two standard errors of the champion's own estimate on that many rows.
+# Only small slices get the allowance: real-text fields (thousands of rows) keep the fixed limits.
+SMALL_N = 300
+ECE_NOISE = 0.5       # ECE standard error is roughly ECE_NOISE / sqrt(n) for 10 bins
+MAX_ECE_TOL = 0.05    # the ECE-rise allowance never exceeds this
+MAX_DROP_TOL = 0.08   # nor the critical-drop allowance
 MAX_LATENCY_MS = 100.0
 GAP_TOLERANCE = 0.01
 # One bad seed can inflate the measured spread; cap the bar so the loop does not reject everything.
@@ -55,6 +63,7 @@ def summarize(result: dict[str, Any]) -> dict[str, Any]:
         "gap": None if synth_same is None or real_score is None
         else round(synth_same - real_score, 4),
         "critical": {k: both.get(k) for k in CRITICAL},
+        "n": {k: field_n(both, k) for k in (*CRITICAL, *(k for k in both if k.endswith("_ece")))},
         "ece": {k: v for k, v in both.items() if k.endswith("_ece")},
         "latency_ms": both.get("latency_median_ms"),
         "consistency_changed_pct": both.get("consistency_changed_pct"),
@@ -63,6 +72,30 @@ def summarize(result: dict[str, Any]) -> dict[str, Any]:
         "backbone": result["config"].get("backbone"),
         "data_version": result["config"].get("data_version"),
     }
+
+
+# Which row count a metric was measured on. ECE keys name the field, not the head.
+_N_KEY = {"location": "location_type", "location_type": "location_type"}
+
+
+def field_n(report: dict[str, Any], metric: str) -> int | None:
+    """Rows behind `metric` in an evaluate() report: its head's *_n, else the location rows (the
+    synthetic slice every span/vulnerable/hazard head is labeled on, for reports from before
+    multi-label heads reported n), else all rows."""
+    base = metric.rsplit("_", 1)[0]
+    for key in (f"{_N_KEY.get(base, base)}_n", "location_type_n", "n_rows"):
+        if isinstance(report.get(key), int) and report[key] > 0:
+            return report[key]
+    return None
+
+
+def noise(p: float, n: int | None) -> float:
+    """Two standard errors of a proportion-like metric p measured on n rows. p is smoothed
+    (Laplace) so a perfect 1.0 or 0.0 on a small slice still allows for one flipped row."""
+    if not n:
+        return 0.0
+    p = (min(max(p, 0.0), 1.0) * n + 1) / (n + 2)
+    return 2 * math.sqrt(p * (1 - p) / n)
 
 
 def signature(cfg: dict[str, Any]) -> str:
@@ -112,14 +145,29 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
     if gain < need:
         fails.append(f"real-text score {cand['real_score']} vs {champ['real_score']}: "
                      f"gain {gain:+.4f} is below {need:.4f}")
+    def rows(k: str) -> int | None:
+        """The larger of the two runs' row counts (the stricter allowance), and only for small
+        slices; None means "use the fixed limit"."""
+        vals = [x for x in ((champ.get("n") or {}).get(k), (cand.get("n") or {}).get(k)) if x]
+        n = max(vals) if vals else None
+        return n if n and n < SMALL_N else None
+
     for k, v in cand["ece"].items():
         b = champ.get("ece", {}).get(k)
-        if b is not None and v - b > MAX_ECE_RISE:
-            fails.append(f"{k} worsened {b} -> {v}")
+        n = rows(k)
+        tol = min(max(MAX_ECE_RISE, 2 * ECE_NOISE / math.sqrt(n)), MAX_ECE_TOL) if n \
+            else MAX_ECE_RISE
+        if b is not None and v - b > tol:
+            fails.append(f"{k} worsened {b} -> {v} (past noise {tol:.3f})")
     for k in CRITICAL:
         c, b = cand["critical"].get(k), champ["critical"].get(k)
-        if c is not None and b is not None and b - c > MAX_DROP:
-            fails.append(f"{k} dropped {b:.4f} -> {c:.4f}")
+        if c is None or b is None:
+            continue
+        # F1 is treated like a proportion over rows; its true sample (positive items) is
+        # smaller, so this errs strict.
+        tol = min(max(MAX_DROP, noise(b, rows(k))), MAX_DROP_TOL)
+        if b - c > tol:
+            fails.append(f"{k} dropped {b:.4f} -> {c:.4f} (past noise {tol:.4f})")
     # The gap counts as widened only past noise, and only when real text did not improve.
     gap_tol = max(GAP_TOLERANCE, 2 * spread) if spread else GAP_TOLERANCE
     if (cand["gap"] is not None and champ.get("gap") is not None
