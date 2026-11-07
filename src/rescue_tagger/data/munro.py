@@ -42,7 +42,9 @@ def download(raw_dir: Path) -> Path:
         if not target.exists():
             from rescue_tagger.data.humaid import fetch
 
-            fetch(lambda u=f"{BASE_URL}/{name}", t=target: urllib.request.urlretrieve(u, t))  # noqa: S310
+            part = target.with_name(target.name + ".part")   # a cut-off file never becomes target
+            fetch(lambda u=f"{BASE_URL}/{name}", t=part: urllib.request.urlretrieve(u, t))  # noqa: S310
+            part.replace(target)
     return out
 
 

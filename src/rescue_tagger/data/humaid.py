@@ -37,15 +37,21 @@ TWITTER_EPOCH_MS = 1288834974657
 
 def fetch(get, waits: tuple[float, ...] = (5, 15, 45)):
     """get() with retries on network errors (a reset connection killed whole training jobs)."""
+    import http.client
     import time
 
     for w in (*waits, None):
         try:
             return get()
-        except OSError:          # URLError, ConnectionResetError and timeouts are OSErrors
+        except (OSError, http.client.HTTPException):   # resets, timeouts, cut-off reads
             if w is None:
                 raise
             time.sleep(w)
+
+
+def _read(req: urllib.request.Request) -> bytes:
+    with urllib.request.urlopen(req) as resp:  # noqa: S310
+        return resp.read()
 
 
 def download(raw_dir: Path, token: str | None = None) -> Path:
@@ -60,8 +66,7 @@ def download(raw_dir: Path, token: str | None = None) -> Path:
             req = urllib.request.Request(url)
             if token:
                 req.add_header("Authorization", f"Bearer {token}")
-            data = fetch(lambda r=req: urllib.request.urlopen(r).read())  # noqa: S310
-            target.write_bytes(data)
+            target.write_bytes(fetch(lambda r=req: _read(r)))
     return out
 
 
