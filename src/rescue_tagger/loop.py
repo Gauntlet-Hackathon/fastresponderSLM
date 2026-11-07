@@ -214,6 +214,13 @@ def compare(candidate: Path, champion: Path, runs_dir: Path | None = None,
                     floor_fails.append(f"{msg}: drop {b - c:.4f} is past {tol:.4f}")
                 else:
                     held.append(f"held {msg} (change {c - b:+.4f}, allowed drop {tol:.4f})")
+            if not champ.get("critical_real") and runs_dir is not None:
+                # Champions promoted before critical_real existed: rebuild from their result.
+                src = runs_dir / champ["run"] / "result.json"
+                if src.exists():
+                    rebuilt = summarize(json.loads(src.read_text()))
+                    champ = {**champ, "critical_real": rebuilt["critical_real"],
+                             "n_real": rebuilt["n_real"]}
             old_crit = champ.get("critical_real") or {}
             if not old_crit:
                 held.append("previous champion has no real-text critical fields recorded; "
@@ -234,7 +241,7 @@ def compare(candidate: Path, champion: Path, runs_dir: Path | None = None,
     ok, reasons = gates(cand, champ, spread)
     if floor_fails:
         ok, reasons = False, [r for r in reasons if "baseline" not in r] + floor_fails
-    else:
+    elif ok:
         reasons = reasons + held
     if result["config"].get("purpose") == "seed" and ok:
         # A seed repeat measures run-to-run noise; promoting the luckiest seed would bake that
