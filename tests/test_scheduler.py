@@ -104,3 +104,30 @@ def test_backbone_baselines_do_not_count_as_rejections():
                         *Q["items"][3:]]}
     act = next_action(q, st(decisions={"base": dec(True), "lr": dec(False), "drop": dec(False)}))
     assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-ep"
+
+
+def test_seed_repeat_runs_beside_the_main_run_in_queue_order():
+    q = {**Q, "seed_parallel": 1}
+    # seed7 is next in the queue: it may start beside a main run
+    act = next_action(q, st(active=["base"]))
+    assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-seed7"
+    assert next_action(Q, st(active=["base"]))["action"] == "wait"  # seed_parallel off
+    # a main item is next: it waits for the main run, and seeds never jump ahead of it
+    assert next_action(q, st(decisions={"base": dec(True), "seed7": dec(False)},
+                             active=["lr"]))["action"] == "wait"
+    # a running seed never blocks the next main item
+    act = next_action(q, st(decisions={"base": dec(True)}, active=["seed7"]))
+    assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-lr"
+
+
+def test_without_seed_parallel_seeds_count_against_max_parallel():
+    assert next_action(Q, st(decisions={"base": dec(True)}, active=["seed7"]))["action"] == "wait"
+
+
+def test_seeds_beyond_seed_parallel_hold_the_main_slot():
+    q = {**Q, "seed_parallel": 1, "items": Q["items"][:2] + [
+        {"name": "lr", "config": "c.yaml", "purpose": "seed", "overrides": {"seed": 9}}]
+        + Q["items"][3:]}
+    # seed7 and the seed-purpose "lr" both run: the main item "drop" must wait
+    act = next_action(q, st(decisions={"base": dec(True)}, active=["seed7", "lr"]))
+    assert act["action"] == "wait"
