@@ -29,7 +29,8 @@ items:
   - {name: laya-v3-focus, config: configs/train_laya.yaml, purpose: baseline}
   - {name: laya-lr5e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 5.0e-5}}
   - {name: laya-dropout0.2, config: configs/train_laya.yaml, overrides: {dropout: 0.2}}
-  - {name: laya-epochs6, config: configs/train_laya.yaml, overrides: {epochs: 6}}
+  # laya-epochs6 was dropped at 18:10 UTC: its run hung past 2 hours (4-epoch runs take ~35 min)
+  # and was cancelled so the product-data baseline could start; it can be re-queued later.
   # Data v4: product sets C and D (train rows; dev rows pick checkpoints) and Gemma batch b0005.
   # Real-text dev is unchanged (product dev rows only pick checkpoints), so it must hold the v3
   # real-text score; trained at the champion lr. Its product-dev report is compared with s13 and v3 in results/product_dev/.
