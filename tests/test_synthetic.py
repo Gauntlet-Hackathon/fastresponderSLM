@@ -123,3 +123,22 @@ def test_verify_only_mode_keeps_agreeing_rows_and_rejects_others(monkeypatch):
     assert S.verify_record(None, rec, "microsoft/phi-4")["record"]["meta"]["verifier"]
     monkeypatch.setattr(S, "_call_json", lambda *a, **k: {**agree, "is_request": False})
     assert "verify:" in S.verify_record(None, rec, "microsoft/phi-4")["error"]
+
+
+def test_vague_specs_become_soft_labeled_records():
+    from rescue_tagger.data import synthetic as S
+
+    spec = S.sample_vague_spec(320001)
+    assert spec.vague and not (spec.hazards or spec.vulnerable or spec.needs or spec.people_count)
+    assert "TOO VAGUE" in S.build_prompt(spec)
+    spec.location_type = "none"
+    gen = {"text": "idk whats going on out here", "LOCATION": None, "COUNT": None, "TIME": None,
+           "CONTACT": None, "NEED_DURATION": dict.fromkeys(S.L.NEED_KINDS)}
+    rec = S.build_record(spec, gen, "Qwen/Qwen2.5-32B-Instruct")
+    assert "is_request" not in rec["labels"] and "request_kind" not in rec["labels"]
+    assert rec["soft_labels"] == {"is_request": 0.5}
+    v = {"is_request": True, "is_stale_post": False, "request_kind": "rescue",
+         "location_type": "none", "hazards": [], "vulnerable": [], "needs": [],
+         "people_count": None}
+    assert S.disagreements(rec, v) == []  # the verifier's call on is_request is not checked
+    assert S.disagreements(rec, {**v, "hazards": ["fire"]})

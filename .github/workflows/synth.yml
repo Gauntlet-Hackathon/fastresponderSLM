@@ -14,11 +14,13 @@ on:
         description: "Specs to try"
         default: "30"
       seed:
-        description: "First seed"
+        description: "First seed (use a fresh range per batch: ids are model + seed; vague 320000+)"
         default: "300000"
-      focus:
-        type: boolean
-        default: true
+      mode:
+        description: "focus = under-covered categories; vague = too vague to call; plain = base mix"
+        type: choice
+        options: [focus, vague, plain]
+        default: focus
 
 permissions:
   contents: write
@@ -57,11 +59,10 @@ jobs:
           NAME: ${{ inputs.name }}
           N: ${{ inputs.n }}
           SEED: ${{ inputs.seed }}
-          FOCUS: ${{ inputs.focus }}
+          MODE: ${{ inputs.mode }}
         run: |
           set -eo pipefail
-          FLAG=$([ "$FOCUS" = "true" ] && echo "--focus" || echo "--no-focus")
-          modal run modal_jobs/synth.py --name "$NAME" --n "$N" --seed "$SEED" $FLAG \
+          modal run modal_jobs/synth.py --name "$NAME" --n "$N" --seed "$SEED" --mode "$MODE" \
             | tee "$RUNNER_TEMP/synth.txt"
           grep -E "^kept [0-9]+" "$RUNNER_TEMP/synth.txt" >> "$GITHUB_STEP_SUMMARY" || true
       - name: Push the batch to synth/<name>

@@ -78,6 +78,16 @@ def collect(model: RescueTagger, tok, rows: list[dict[str, Any]], bs: int = 64):
 DEFAULT_EXCLUDE = ("humaid",)  # weak labels: donation appeals count as "requests" there
 
 
+def fit_mask(d: dict[str, torch.Tensor], head: str) -> torch.Tensor:
+    """Rows a head's temperature is fitted on: labeled, and for binary heads hard-labeled only
+    (soft targets from records.soft_labels are trained on, never fitted or scored)."""
+    m = d[f"target:{head}_mask"] > 0
+    if head in L.BINARY_HEADS:
+        y = d[f"target:{head}"]
+        m &= (y == 0) | (y == 1)
+    return m
+
+
 def calibrate(model_dir: Path, data: Path,
               exclude_sources: tuple[str, ...] = DEFAULT_EXCLUDE,
               half: str | None = None) -> dict[str, Any]:
@@ -93,7 +103,7 @@ def calibrate(model_dir: Path, data: Path,
     report: dict[str, Any] = {}
 
     for h in (*L.BINARY_HEADS, *L.MULTI_LABEL_HEADS):
-        m = d[f"target:{h}_mask"] > 0
+        m = fit_mask(d, h)
         if m.sum() < 20:
             continue
         logits, y = d[f"logits:{h}"][m], d[f"target:{h}"][m]

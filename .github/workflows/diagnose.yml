@@ -17,6 +17,15 @@ on:
         type: boolean
         required: false
         default: false
+      publish:
+        description: "Instead, publish the run (gated) to the Hugging Face Hub as a new revision"
+        type: boolean
+        required: false
+        default: false
+      final_run:
+        description: "With publish: the morning-check run of the same weights, for the card"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -40,9 +49,15 @@ jobs:
           RUN: ${{ inputs.run }}
           TEXT: ${{ inputs.text }}
           COMPARE: ${{ inputs.compare }}
+          PUBLISH: ${{ inputs.publish }}
+          FINAL_RUN: ${{ inputs.final_run }}
         run: |
           set -eo pipefail
-          if [ "$COMPARE" = "true" ]; then
+          if [ "$PUBLISH" = "true" ]; then
+            modal run modal_jobs/train.py::publish_existing --run "$RUN" --final-run "$FINAL_RUN" \
+              | tee "$RUNNER_TEMP/diagnose.txt"
+            cat "$RUNNER_TEMP/diagnose.txt" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$COMPARE" = "true" ]; then
             modal run modal_jobs/train.py::compare --run "$RUN" | tee "$RUNNER_TEMP/diagnose.txt"
             cat "$RUNNER_TEMP/diagnose.txt" >> "$GITHUB_STEP_SUMMARY"
           elif [ -n "$TEXT" ]; then

@@ -68,11 +68,14 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
                                                                   "hazards", "vulnerable")}
     gold_counts: dict[str, Counter] = {h: Counter() for h in stats}
     latencies = []
+    vague: list[bool] = []  # rows too vague to call: flagged as unsure (is_request conf < 0.75)?
     for rec in rows:
         t0 = time.perf_counter()
         pay = ex.extract(rec["text"])
         latencies.append(time.perf_counter() - t0)
         lab = rec["labels"]
+        if "is_request" in (rec.get("soft_labels") or {}):
+            vague.append(pay["is_request"]["confidence"] < 0.75)
         if "is_request" in lab:
             ok = pay["is_request"]["value"] == lab["is_request"]
             stats["is_request"]["correct"] += ok
@@ -162,6 +165,9 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
             ok = torch.tensor([o for _, o in pairs])
             report[f"{h}_ece"] = round(ece(c, ok)[0], 4)
     # Since 2026-11-07: min of the medians over the first 200 rows (earlier: one pass, all rows).
+    if vague:  # reported for reading, not a selection gate
+        report["vague_flagged_unsure"] = round(sum(vague) / len(vague), 4)
+        report["vague_n"] = len(vague)
     report["latency_median_ms"] = round(min(medians) * 1000, 2)
     report["latency_first_pass_ms"] = round(statistics.median(latencies) * 1000, 2)
     report["cpu"] = cpu_name()

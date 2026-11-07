@@ -1,6 +1,6 @@
 """Generate synthetic training data with open-weights models on a Modal GPU (no Claude, no OpenAI).
 
-  modal run modal_jobs/synth.py --name b0004-focus-qwen --n 30 --seed 300000 --focus
+  modal run modal_jobs/synth.py --name b0004-focus-qwen --n 30 --seed 300000 --mode focus
 
 A vLLM server (OpenAI-compatible) holds one model at a time. Phase 1: the generator writes messages
 for label-first specs (rescue_tagger.data.synthetic). Phase 2: a model from another family labels
@@ -37,6 +37,7 @@ runs = modal.Volume.from_name("rescue-tagger-runs", create_if_missing=True)
 hf_cache = modal.Volume.from_name("rescue-tagger-hf-cache", create_if_missing=True)
 app = modal.App("rescue-synth", image=image)
 PORT = 8000
+MODES = {"focus": ["--focus"], "vague": ["--vague"], "plain": []}
 
 
 def stop(proc: subprocess.Popen) -> None:
@@ -86,7 +87,7 @@ def serve(model: str) -> subprocess.Popen:
 @app.function(gpu="H100", timeout=2 * 3600,
               volumes={"/runs": runs, "/root/.cache/huggingface": hf_cache},
               secrets=[modal.Secret.from_dict({"HF_TOKEN": os.environ.get("HF_TOKEN", "")})])
-def generate(name: str, n: int, seed: int, focus: bool, gen_model: str,
+def generate(name: str, n: int, seed: int, mode: str, gen_model: str,
              verify_model: str) -> dict[str, str]:
     os.chdir(REMOTE_ROOT)
     os.environ.update({"OPENAI_BASE_URL": f"http://localhost:{PORT}/v1",
@@ -102,7 +103,7 @@ def generate(name: str, n: int, seed: int, focus: bool, gen_model: str,
     proc = serve(gen_model)
     try:
         run("--n", str(n), "--seed", str(seed), "--out", str(raw), "--gen-model", gen_model,
-            "--verify-model", "", "--workers", "32", *(["--focus"] if focus else []))
+            "--verify-model", "", "--workers", "32", *MODES[mode])
     finally:
         stop(proc)
     hf_cache.commit()
@@ -121,9 +122,11 @@ def generate(name: str, n: int, seed: int, focus: bool, gen_model: str,
 
 
 @app.local_entrypoint()
-def main(name: str, n: int = 30, seed: int = 300000, focus: bool = True,
+def main(name: str, n: int = 30, seed: int = 300000, mode: str = "focus",
          gen_model: str = GEN_MODEL, verify_model: str = VERIFY_MODEL) -> None:
-    res = generate.remote(name, n, seed, focus, gen_model, verify_model)
+    if mode not in MODES:
+        raise SystemExit(f"mode must be one of {sorted(MODES)}")
+    res = generate.remote(name, n, seed, mode, gen_model, verify_model)
     Path(f"{name}.jsonl").write_text(res["kept"])
     Path(f"{name}.rejected.jsonl").write_text(res["rejected"])
     print(f"kept {len(res['kept'].splitlines())}, rejected {len(res['rejected'].splitlines())}")
