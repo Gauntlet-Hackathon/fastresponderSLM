@@ -44,7 +44,8 @@ app = modal.App("rescue-tagger", image=image)
 
 
 @app.function(
-    gpu="L4",
+    # A fallback list: one run waited 97 minutes for an L4 before its container started.
+    gpu=["L4", "A10G"],
     cpu=4,  # the latency gate times CPU inference with 4 threads; reserve them
     timeout=4 * 60 * 60,
     volumes={"/runs": runs},
@@ -56,6 +57,10 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str],
     compare with the current best model. Test sets and Harvey are scored only when `final` is set,
     and every such scoring is logged to /runs/eval_reads.jsonl. `reuse` names an earlier run whose
     trained weights are re-calibrated and re-scored instead of training again."""
+    import time as _time
+
+    # First line in the log, so a long wait for a GPU is not mistaken for a hung run.
+    print(f"container started {_time.strftime('%H:%M:%S', _time.gmtime())} UTC", flush=True)
     import json
     import shutil
     import subprocess
