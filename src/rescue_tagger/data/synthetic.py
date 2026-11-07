@@ -104,6 +104,7 @@ class Spec:
     device: str | None = None       # the powered device, for medical_device_no_power
     vague: bool = False             # too vague to call: is_request is a soft 0.5, never scored
     hoax: bool = False              # reads like a request but may be a prank: soft 0.5 as well
+    third_party: bool = False       # written about someone else who is not with the writer
 
 
 # Powered medical devices (rubric: "a medical device that needs electricity").
@@ -202,6 +203,49 @@ def sample_hoax_spec(seed: int) -> Spec:
     spec.prompt_injection, spec.vague = False, False
     spec.hoax = True
     spec.style = f"{spec.style}; hoax sign: {r.choice(HOAX_SIGNS)}"
+    return spec
+
+
+# --mix (v8, b0010+): Paawan asked (2026-11-07) for more mixed-language messages, old posts and
+# requests made on someone else's behalf. Categories and weights only, never text from any eval set.
+MIX = ("code_switch", "stale", "third_party")
+MIX_WEIGHTS = (35, 30, 35)
+CODE_SWITCH = {
+    "mixed": "switches between English and Spanish mid-sentence, the way bilingual "
+             "Houstonians text",
+    "vi": "switches between Vietnamese and English mid-sentence (English words for places, "
+          "agencies and some phrases)",
+}
+
+
+def sample_mix_spec(seed: int) -> Spec:
+    """A request built around code-switching, an old post or a third-party ask (see --mix).
+    Deterministic per seed; the base spec supplies style, location and the rest."""
+    r = random.Random(f"mix:{seed}")
+    spec = sample_spec(seed)
+    focus = r.choices(MIX, weights=MIX_WEIGHTS)[0]
+    if not spec.is_request:
+        spec.is_request, spec.non_request_type = True, None
+        spec.request_kind = r.choices(L.REQUEST_KINDS, weights=(40, 20, 10, 25, 5))[0]
+    spec.prompt_injection = False
+    if focus == "code_switch" or r.random() < 0.3:  # mixed language within the other two as well
+        spec.lang = r.choice(["mixed", "mixed", "vi"])
+        spec.style = f"{spec.style}; {CODE_SWITCH[spec.lang]}"
+    spec.is_stale_post = focus == "stale"
+    spec.time_ref = spec.time_ref or spec.is_stale_post
+    if focus == "third_party":
+        spec.third_party = True
+        spec.request_kind = r.choices(["rescue", "evacuation", "welfare_check", "supply"],
+                                      weights=(35, 25, 30, 10))[0]
+        who = r.choice(["a relative", "a neighbor", "a friend", "a coworker", "an adult child"])
+        spec.style = (f"{spec.style}; written by {who} about someone else who is NOT with the "
+                      "writer (third person: they/her/him, their address, their situation)")
+    if "medical_device_no_power" in spec.hazards:  # the rubric, for base specs too
+        spec.vulnerable = sorted(set(spec.vulnerable) | {"medical"})
+    if spec.request_kind == "supply" and not spec.needs:
+        spec.needs = {r.choice(L.NEED_KINDS): r.choice([None, 24, 48])}
+    spec.vulnerable = [v for v in L.VULNERABLE_KINDS if v in spec.vulnerable]
+    spec.hazards = [h for h in L.HAZARD_KINDS if h in spec.hazards]
     return spec
 
 
@@ -651,9 +695,11 @@ def _call_json(client, model: str, system: str, user: str, schema: dict, name: s
 
 
 def generate_one(client, seed: int, gen_model: str, verify_model: str | None,
-                 focus: bool = False, vague: bool = False, hoax: bool = False) -> dict[str, Any]:
+                 focus: bool = False, vague: bool = False, hoax: bool = False,
+                 mix: bool = False) -> dict[str, Any]:
     """Returns {"record": ...} on success or {"seed", "error"} when the row is rejected."""
     spec = (sample_hoax_spec(seed) if hoax else sample_vague_spec(seed) if vague
+            else sample_mix_spec(seed) if mix
             else sample_focus_spec(seed) if focus else sample_spec(seed))
     try:
         gen = _call_json(client, gen_model, GEN_SYSTEM, build_prompt(spec), GEN_SCHEMA, "message")
@@ -688,6 +734,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="messages too vague to call (soft is_request 0.5; see sample_vague_spec)")
     ap.add_argument("--hoax", action="store_true",
                     help="requests that may be pranks (soft is_request 0.5; see sample_hoax_spec)")
+    ap.add_argument("--mix", action="store_true",
+                    help="code-switching, old posts and third-party asks (see sample_mix_spec)")
     ap.add_argument("--verify-file", type=Path, default=None,
                     help="only check the records in this file with --verify-model")
     args = ap.parse_args(argv)
@@ -705,7 +753,7 @@ def main(argv: list[str] | None = None) -> int:
             seeds = range(args.seed, args.seed + args.n)
             results = list(pool.map(
                 lambda s: generate_one(client, s, args.gen_model, args.verify_model or None,
-                                       args.focus, args.vague, args.hoax), seeds))
+                                       args.focus, args.vague, args.hoax, args.mix), seeds))
     kept = [r["record"] for r in results if "record" in r]
     rejected = [r for r in results if "record" not in r]
     write_jsonl(args.out, kept)

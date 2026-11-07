@@ -237,3 +237,16 @@ def test_hoax_spec_is_a_request_with_soft_label():
     sp = sample_hoax_spec(400000)
     assert sp.hoax and sp.is_request and not sp.vague and "hoax sign" in sp.style
     assert "prank" in build_prompt(sp)
+
+
+def test_mix_spec_covers_code_switch_stale_and_third_party():
+    from rescue_tagger.data.synthetic import build_prompt, sample_mix_spec
+
+    specs = [sample_mix_spec(350000 + i) for i in range(300)]
+    assert all(sp.is_request and not sp.prompt_injection for sp in specs)
+    assert sum(sp.lang in ("mixed", "vi") and "mid-sentence" in sp.style for sp in specs) > 100
+    stale = [sp for sp in specs if sp.is_stale_post]
+    assert stale and all("OLD post" in build_prompt(sp) for sp in stale[:5])
+    third = [sp for sp in specs if sp.third_party]
+    assert third and all("NOT with the writer" in sp.style for sp in third)
+    assert sample_mix_spec(350001) == sample_mix_spec(350001)
