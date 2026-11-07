@@ -48,7 +48,7 @@ in `src/rescue_tagger/llm_baseline.py`; `--show-prompts` prints them.
 - Edge cases are protected from training by the leak check (`configs/data.yaml`); adding them
   dropped no training rows.
 - Known bias: the edge cases, the second labels and the Opus prompts were all written by Claude
-  models, the same family as the baseline. Training data comes from OpenAI models only.
+  models, the same family as the baseline. Training data never comes from Claude models (OpenAI, and open-weights models on Modal).
 - A missing or failed Opus output scores as wrong on every field it would have been graded on
   (and confident), so failures never earn credit for "not a request" or "unsure". A condition is
   scored only when it covers every row; the table shows coverage and the failure count.

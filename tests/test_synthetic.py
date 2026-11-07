@@ -102,3 +102,24 @@ def test_focus_specs_follow_the_rubric():
     assert all(s.is_request for s in specs)
     assert all(s.needs for s in specs if s.request_kind == "supply")
     assert any(s.is_stale_post for s in specs)
+
+
+def test_verify_only_mode_keeps_agreeing_rows_and_rejects_others(monkeypatch):
+    from rescue_tagger.data import synthetic as S
+
+    spec = S.sample_focus_spec(300001)
+    gen = {"text": "x", "LOCATION": None, "COUNT": None, "TIME": None, "CONTACT": None,
+           "NEED_DURATION": dict.fromkeys(S.L.NEED_KINDS)}
+    spec.location_type, spec.people_count = "none", None
+    rec = S.build_record(spec, gen, "Qwen/Qwen2.5-32B-Instruct")
+    assert rec["id"].startswith("synthetic:Qwen2.5-32B-Instruct:")
+    lab = rec["labels"]
+    agree = {"is_request": lab["is_request"], "is_stale_post": lab["is_stale_post"],
+             "request_kind": lab["request_kind"], "location_type": lab["location_type"],
+             "hazards": [k for k, v in lab["hazards"].items() if v],
+             "vulnerable": [k for k, v in lab["vulnerable"].items() if v],
+             "needs": [k for k, v in lab["needs"].items() if v], "people_count": None}
+    monkeypatch.setattr(S, "_call_json", lambda *a, **k: agree)
+    assert S.verify_record(None, rec, "microsoft/phi-4")["record"]["meta"]["verifier"]
+    monkeypatch.setattr(S, "_call_json", lambda *a, **k: {**agree, "is_request": False})
+    assert "verify:" in S.verify_record(None, rec, "microsoft/phi-4")["error"]
