@@ -135,3 +135,44 @@ def test_runs_on_other_label_versions_are_not_compared(tmp_path):
     d = compare(tmp_path / "new.json", champ, tmp_path, promote=True)
     assert d["promote"] and d["champion"] is None and d["seed_spread"] is None
     assert json.loads(champ.read_text())["run"] == "new"
+
+
+def _with_n(res, **ns):
+    res["eval"]["dev_rubric"].update({f"{k}_n": v for k, v in ns.items()})
+    return res
+
+
+def test_one_flipped_row_out_of_72_does_not_reject():
+    """dev_rubric's vulnerable/location heads come from ~72 synthetic rows: 1.4 points is noise."""
+    champ = summarize(_with_n(_result("c", real=0.80), location_type=72, vulnerable=72,
+                              is_request=3000))
+    cand = summarize(_with_n(_result("a", real=0.83, crit={"location_type_accuracy": 0.886}),
+                             location_type=72, vulnerable=72, is_request=3000))
+    ok, why = gates(cand, champ)
+    assert ok, why
+
+
+def test_a_real_drop_on_72_rows_still_rejects():
+    champ = summarize(_with_n(_result("c", real=0.80), location_type=72))
+    cand = summarize(_with_n(_result("a", real=0.83, crit={"location_type_accuracy": 0.75}),
+                             location_type=72))
+    ok, why = gates(cand, champ)
+    assert not ok and any("location_type_accuracy" in w for w in why)
+
+
+def test_large_slices_keep_the_strict_drop_limit():
+    champ = summarize(_with_n(_result("c", real=0.80), is_request=20000))
+    cand = summarize(_with_n(_result("a", real=0.83, crit={"is_request_accuracy": 0.835}),
+                             is_request=20000))
+    ok, why = gates(cand, champ)
+    assert not ok and any("is_request_accuracy" in w for w in why)
+
+
+def test_ece_rise_on_72_rows_is_noise_but_large_rise_is_not():
+    champ = summarize(_with_n(_result("c", real=0.80, ece=0.03), is_request=72))
+    assert gates(summarize(_with_n(_result("a", real=0.83, ece=0.07), is_request=72)), champ)[0]
+    # rise 0.069 is under 2 * 0.5 / sqrt(72) = 0.118, and 0.099 is under the 0.10 ceiling
+    assert gates(summarize(_with_n(_result("b", real=0.83, ece=0.099), is_request=72)), champ)[0]
+    big = summarize(_with_n(_result("c2", real=0.80, ece=0.03), is_request=5000))
+    assert not gates(summarize(_with_n(_result("d", real=0.83, ece=0.06), is_request=5000)),
+                     big)[0]
