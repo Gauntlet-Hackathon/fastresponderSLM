@@ -182,14 +182,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("model_dir", type=Path)
     ap.add_argument("--data", type=Path, required=True)
     ap.add_argument("--source", default=None, help="only rows from this source")
-    ap.add_argument("--exclude-source", default=None, help="drop rows from this source")
+    ap.add_argument("--exclude-source", action="append", default=[],
+                    help="drop rows from this source (repeatable)")
     ap.add_argument("--half", choices=["calib", "select"], default=None,
                     help="only rows in this fixed half of dev")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args(argv)
     rows = [r for r in read_jsonl(args.data) if args.source in (None, r["source"])
-            and r["source"] != args.exclude_source
+            and r["source"] not in args.exclude_source
             and (args.half is None or dev_half(r["id"]) == args.half)]
     rows = rows[: args.limit] if args.limit else rows
     report = evaluate(Extractor.load(args.model_dir), rows)

@@ -37,7 +37,12 @@ def synthetic_split(rec_id: str, dev_pct: int, test_pct: int) -> str:
 
 def protected_texts(paths: list[str]) -> list[str]:
     """Texts from eval files: JSONL rows with raw_text or text."""
-    out: list[str] = []
+    return [r.get("raw_text") or r.get("text") for r in protected_rows(paths)]
+
+
+def protected_rows(paths: list[str]) -> list[dict[str, Any]]:
+    """Rows of eval files that carry a raw_text or text."""
+    out: list[dict[str, Any]] = []
     for pattern in paths:
         expanded = os.path.expandvars(pattern)
         if "$" in expanded:
@@ -48,9 +53,8 @@ def protected_texts(paths: list[str]) -> list[str]:
             )
         for p in sorted(glob.glob(expanded)):
             for row in read_jsonl(Path(p)):
-                t = row.get("raw_text") or row.get("text")
-                if t:
-                    out.append(t)
+                if row.get("raw_text") or row.get("text"):
+                    out.append(row)
     return out
 
 
@@ -106,9 +110,13 @@ def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
                 rows.append(rec)
     product_texts: set[str] = set()
     if src_cfg.get("product", {}).get("enabled"):
-        recs = product.load(root / src_cfg["product"]["path"])
-        product_texts = {r["text"] for r in recs}
-        rows += recs
+        path = root / src_cfg["product"]["path"]
+        recs = product.load(path)
+        product_texts = {r["raw_text"] for r in read_jsonl(path)}  # all given rows, even unused
+        held = product.held_back_groups(protected_rows(cfg.get("protected_texts", [])),
+                                        product_texts)
+        same_household = [r["id"] for r in recs if r["meta"]["duplicate_group"] in held]
+        rows += [r for r in recs if r["id"] not in same_household]
 
     for rec in rows:
         w = src_cfg[rec["source"]].get("weight", 1.0)
@@ -166,6 +174,9 @@ def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
             "by_source": dict(Counter(r["source"] for r in recs)),
             "by_lang": dict(Counter(r["lang"] for r in recs)),
         }
+    if src_cfg.get("product", {}).get("enabled"):
+        dropped += same_household  # same household as a held-back product test row
+        manifest["leak_dropped"] = len(dropped)
     (out_dir / "leak_dropped.txt").write_text("\n".join(dropped) + "\n", encoding="utf-8")
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest

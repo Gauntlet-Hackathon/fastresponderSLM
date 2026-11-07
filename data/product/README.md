@@ -11,6 +11,10 @@ team's eval sets, given to us on 2026-11-07 to train on and pick checkpoints wit
   (`python -m rescue_tagger.product_eval`).
 - The product team holds back 102 more rows from these sets as the scored test split. They are not
   here and must never be recreated. The leak check still reads the product's eval files, so any of
-  our rows that resembles a held-back row is dropped from training (one train row, C-049).
+  our rows that resembles a held-back row is dropped (C-049), and so is any row describing the same
+  household as a held-back row (`gold_duplicate_group`: C-058 dev, C-059 train). A dev row of the
+  same household as a train row (C-053) does not pick checkpoints. Net: 31 train, 32 dev rows.
+- Product dev rows stay out of the select half of dev that ranks runs (`dev_real`), so real-text
+  dev is unchanged from v3.
 - No tweets: safe to train on and keep in the repo. How each field becomes a training target is
   in `src/rescue_tagger/data/product.py`.

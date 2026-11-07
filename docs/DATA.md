@@ -80,8 +80,9 @@ generator's reading of its own text.
 ## Data v4 (Gemma focus batch, product sets C and D)
 
 v4 adds the product team's hand-written sets C and D (train and dev rows only; see
-`data/product/README.md`) and one Gemma batch. The 34 product dev rows join real-text dev, so v4
-runs are not compared with v3 runs: the first v4 run is the new baseline.
+`data/product/README.md`) and one Gemma batch. Product dev rows pick checkpoints but are kept out
+of the select-half scores that rank runs, so real-text dev is unchanged from v3: v4 runs are judged
+against the v3 champion and must hold its real-text score and critical fields.
 
 v4's Gemma batch was written by Gemma 4 31B (open weights, on Modal) and checked blind by Phi-4.
 When Phi-4 disagrees on one or two fields, those fields are masked (dropped from the labels, so

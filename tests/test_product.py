@@ -49,3 +49,14 @@ def test_score_rewards_unsure_on_pranks_and_counts_dropped_p1_hazards():
     s = score(rows, bad)
     assert s["unsure_flagged"] == 0.0 and s["joke_taken_as_confident_request"] == 1
     assert s["p1_critical_kept"] == 0.0 and s["hazards_f1"] == pytest.approx(0.5)
+
+
+def test_rows_sharing_a_household_with_train_or_held_back_rows_are_left_out():
+    from rescue_tagger.data.product import held_back_groups
+
+    ids = {r["meta"]["product_id"] for r in load(DATA)}
+    assert "C-053" not in ids and "C-054" in ids  # dev row of a train row's household
+    ours = {r["raw_text"] for r in ROWS.values()}
+    held = [{"raw_text": "a reworded test message", "gold_duplicate_group": "C-dup-6"},
+            {"raw_text": ROWS["C-054"]["raw_text"], "gold_duplicate_group": "C-dup-3"}]
+    assert held_back_groups(held, ours) == {"C-dup-6"}

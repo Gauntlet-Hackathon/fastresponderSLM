@@ -118,6 +118,8 @@ def generate(name: str, n: int, seed: int, mode: str, gen_model: str,
     if reverify:
         # Re-check an earlier batch's unverified generations with the current verifier rules
         # (no generation, so only the verifier's GPU time is spent).
+        if reverify == name:
+            raise SystemExit("reverify needs a new batch name, not the source batch's")
         src = Path(f"/runs/synth/{reverify}")
         if not (src / "raw.jsonl").exists():
             raise SystemExit(f"no raw generations for {reverify}")

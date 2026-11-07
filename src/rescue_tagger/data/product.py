@@ -18,6 +18,8 @@ Mapping from the row's gold `extracted` payload (the same schema infer.py emits)
 - A hazard below 0.5 confidence ("maybe smoke?") is unsure: the whole hazards head is left unknown
   on that row rather than taught as present or absent.
 - people_count null (absent or conflicting counts) is the "not stated" class.
+- Rows that share a household (duplicate group) with a held-back test row are dropped at build
+  time; a dev row sharing one with a train row is dropped here.
 - Spans were not labelled, so spans are unknown (null): the token head learns nothing from these
   rows, never "no spans".
 """
@@ -79,7 +81,8 @@ def to_record(row: dict[str, Any]) -> dict[str, Any]:
         "spans": None,
         "people_count": g["people_count"]["value"] or None,
         "need_hours": {n["kind"]: n.get("hours_without") for n in g["needs"]},
-        "meta": {"set": row["set"], "product_id": row["id"]},
+        "meta": {"set": row["set"], "product_id": row["id"],
+                 "duplicate_group": row.get("gold_duplicate_group")},
     }
     if soft:
         rec["soft_labels"] = soft
@@ -91,4 +94,16 @@ def load(path: Path) -> list[dict[str, Any]]:
     bad = [r["id"] for r in rows if r.get("split") not in ("train", "dev")]
     if bad:
         raise ValueError(f"{path}: only train/dev product rows may be in the repo, got {bad}")
-    return [to_record(r) for r in rows]
+    # Rows sharing a duplicate group describe the same household. A dev row whose household is
+    # also a train row would reward memorizing that train row at checkpoint time: leave it out.
+    train_groups = {r["gold_duplicate_group"] for r in rows
+                    if r["split"] == "train" and r.get("gold_duplicate_group")}
+    return [to_record(r) for r in rows
+            if not (r["split"] == "dev" and r.get("gold_duplicate_group") in train_groups)]
+
+
+def held_back_groups(eval_rows: list[dict[str, Any]], ours: set[str]) -> set[str]:
+    """Duplicate groups of the product's eval rows that are not ours (the held-back test rows).
+    A row of ours in one of these groups is the same household as a test row, reworded."""
+    return {r["gold_duplicate_group"] for r in eval_rows
+            if r.get("gold_duplicate_group") and (r.get("raw_text") or r.get("text")) not in ours}
