@@ -31,7 +31,10 @@ image = (
     # transformers range it was built against.
     .pip_install("vllm==0.31.0", "openai>=2.25,<4", "jsonschema>=4.23", "referencing>=0.35",
                  "pyyaml>=6.0")
-    .env({"PYTHONPATH": f"{REMOTE_ROOT}/src", "HF_HUB_ENABLE_HF_TRANSFER": "0"})
+    # FlashInfer's sampler is compiled on first use and needs nvcc, which this slim image lacks;
+    # vLLM's own top-k/top-p sampler needs no compiler.
+    .env({"PYTHONPATH": f"{REMOTE_ROOT}/src", "HF_HUB_ENABLE_HF_TRANSFER": "0",
+          "VLLM_USE_FLASHINFER_SAMPLER": "0"})
     .add_local_dir(REPO_ROOT, REMOTE_ROOT, ignore=[".venv", ".git", "outputs", "data/raw",
                                                      "data/processed", "**/__pycache__"])
 )
@@ -73,9 +76,12 @@ def serve(model: str) -> subprocess.Popen:
             "--gpu-memory-utilization", "0.92"]
     if "gemma-4" in model.lower():
         # Gemma 4 checkpoints carry a vision tower; text only frees its memory for
-        # the KV cache. Thinking stays off (the chat template's default), so the constrained
-        # JSON answer starts right away.
-        args.append("--language-model-only")
+        # the KV cache. In bf16 the 31B weights took 58 GiB and left room for ~1.5 requests of
+        # 8k tokens; FP8 weights (one scale per output channel, activations scaled per token;
+        # H100-native) halve that so many requests run at once.
+        # Thinking stays off (the chat template's default), so the constrained JSON answer
+        # starts right away.
+        args += ["--language-model-only", "--quantization", "fp8_per_channel"]
     proc = subprocess.Popen([sys.executable, "-m", "vllm.entrypoints.openai.api_server", *args],
                             start_new_session=True)
     import urllib.request
