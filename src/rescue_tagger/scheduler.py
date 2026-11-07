@@ -104,14 +104,17 @@ def next_action(queue: dict[str, Any], st: State, hhmm: str | None = None) -> di
         return {"action": "wait", "why": f"morning test-set window ({hhmm} UTC)"}
     item = pending[0]
     # Seed repeats are never promoted and only measure noise at a fixed setting, so up to
-    # `seed_parallel` of them may run beside the main run. Items still launch in queue order, and
-    # seeds never hold a main slot (runs not in the queue count as main).
-    seed_names = {run_name(night, i) for i in items if i.get("purpose") == "seed"}
+    # `seed_parallel` of them may run beside the main run. Items still launch in queue order; a
+    # seed may use an idle main slot too, and runs not in the queue count as main.
+    seed_parallel = queue.get("seed_parallel", 0)
+    seed_names = ({run_name(night, i) for i in items if i.get("purpose") == "seed"}
+                  if seed_parallel else set())
     active_seeds = sum(1 for a in st.active if a in seed_names)
-    active_main = len(st.active) - active_seeds
-    if item.get("purpose") == "seed" and queue.get("seed_parallel", 0):
-        if active_seeds >= queue["seed_parallel"]:
-            return {"action": "wait", "why": f"{active_seeds} seed repeat(s) in progress"}
+    active_main = len(st.active) - min(active_seeds, seed_parallel)  # extra seeds hold main slots
+    if item.get("purpose") == "seed" and seed_parallel:
+        # A seed may take its own slot or an idle main slot.
+        if active_seeds >= seed_parallel and active_main >= max_parallel:
+            return {"action": "wait", "why": f"{len(st.active)} run(s) in progress"}
     elif active_main >= max_parallel:
         return {"action": "wait", "why": f"{active_main} run(s) in progress"}
     overrides = dict(item.get("overrides", {}))

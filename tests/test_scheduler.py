@@ -118,3 +118,16 @@ def test_seed_repeat_runs_beside_the_main_run_in_queue_order():
     # a running seed never blocks the next main item
     act = next_action(q, st(decisions={"base": dec(True)}, active=["seed7"]))
     assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-lr"
+
+
+def test_without_seed_parallel_seeds_count_against_max_parallel():
+    assert next_action(Q, st(decisions={"base": dec(True)}, active=["seed7"]))["action"] == "wait"
+
+
+def test_seeds_beyond_seed_parallel_hold_the_main_slot():
+    q = {**Q, "seed_parallel": 1, "items": Q["items"][:2] + [
+        {"name": "lr", "config": "c.yaml", "purpose": "seed", "overrides": {"seed": 9}}]
+        + Q["items"][3:]}
+    # seed7 and the seed-purpose "lr" both run: the main item "drop" must wait
+    act = next_action(q, st(decisions={"base": dec(True)}, active=["seed7", "lr"]))
+    assert act["action"] == "wait"
