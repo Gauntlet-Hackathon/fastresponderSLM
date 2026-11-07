@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Downloaded public datasets are fetched by script, never committed.
+data/raw/
+# Built training files are reproducible from configs + raw + synthetic; keep them out of git.
+data/processed/
+# Synthetic generation scratch (partial runs). Finished batches are committed under data/synthetic/batches/.
+data/synthetic/_work/
+
+# Training outputs
+outputs/
+runs/
+wandb/
