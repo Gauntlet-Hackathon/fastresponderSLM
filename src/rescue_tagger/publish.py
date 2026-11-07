@@ -10,10 +10,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
 DEFAULT_REPO = "paawandesai/rescue-tagger"
+
+
+def _spec(path: str) -> str:
+    """An ingredient as `hf:<org>/<name>@<sha>` (from its HF cache path) or its folder name, so the
+    public card never shows a local path."""
+    m = re.search(r"models--([^/]+)--([^/]+)/snapshots/([0-9a-f]{40})", path)
+    return f"hf:{m[1]}/{m[2]}@{m[3]}" if m else Path(path).name
 
 
 def model_card(model_dir: Path, eval_reports: dict[str, Any] | None,
@@ -22,20 +30,21 @@ def model_card(model_dir: Path, eval_reports: dict[str, Any] | None,
     soup_file = model_dir / "soup.json"
     soup = ""
     if soup_file.exists():
-        parts = "\n".join(f"  - `{i}`" for i in json.loads(soup_file.read_text())["ingredients"])
-        soup = ("- **Model soup**: the uniform weight average of these fine-tuned runs (same "
-                "backbone and heads), chosen greedily on dev only, then re-calibrated on dev:\n"
+        ingredients = json.loads(soup_file.read_text())["ingredients"]
+        parts = "\n".join(f"  - `{_spec(i)}`" for i in ingredients)
+        soup = ("- Model soup: the uniform weight average of these fine-tuned runs (same backbone\n"
+                "  and heads), chosen greedily on dev only, then re-calibrated on dev:\n"
                 + parts + "\n")
-    opus = ("- **Opus rubric labels** (data v10): Claude Opus labelled 2,500 Munro/HumAID *train* "
-            "tweets with the product rubric; they replace those tweets' original labels. Because "
-            "of this, comparisons against Claude Opus and on Claude-drafted eval cases are not "
-            "fully independent of the training data.\n") if opus_labels else ""
+    opus = ("- **Opus rubric labels** (data v10): Claude Opus labelled 2,500 Munro/HumAID *train*\n"
+            "  tweets with the product rubric; they replace those tweets' original labels.\n"
+            "  Because of this, comparisons against Claude Opus and on Claude-drafted eval cases\n"
+            "  are not fully independent of the training data.\n") if opus_labels else ""
     cal = model_dir / "calibration.json"
     temps = json.loads(cal.read_text())["temperatures"] if cal.exists() else {}
     evals = json.dumps(eval_reports or {}, indent=2)
     return f"""---
 license: cc-by-nc-sa-4.0
-language: [en, es]
+language: [en, es, vi]
 extra_gated_prompt: >-
   This model is for non-commercial research use only (CC BY-NC-SA 4.0, inherited from its HumAID
   training data). By requesting access you agree to use it only for non-commercial research and
@@ -47,15 +56,15 @@ base_model: {cfg["backbone"]}
 ---
 # rescue-tagger
 
-Reads one flood-rescue request (English, Spanish or mixed) and returns the `extracted` payload of
-the rescue triage product: location, people count, vulnerable people, hazards, needs, request kind,
-time reference and whether it is a request, each with a calibrated confidence. It never decides
-priority; a deterministic rules engine does. Runs offline on CPU; outputs are deterministic.
+Reads one flood-rescue request (English, Spanish, Vietnamese or mixed) and returns the `extracted`
+payload of the rescue triage product: location, people count, vulnerable people, hazards, needs,
+request kind, time reference and whether it is a request, each with a calibrated confidence. It
+never decides priority; a deterministic rules engine does. Runs offline on CPU; outputs are
+deterministic.
 
 - Backbone: `{cfg["backbone"]}` + BIO span tagger + one head per field.
 - Calibration: per-head temperature scaling on the dev split: `{json.dumps(temps)}`.
-{soup}
-- Code: https://github.com/Gauntlet-Hackathon/fastresponderSLM
+{soup}- Code: https://github.com/Gauntlet-Hackathon/fastresponderSLM
 
 ## License and intended use
 **CC BY-NC-SA 4.0: non-commercial, research use only.** The license is inherited from HumAID,
@@ -72,8 +81,7 @@ Derivatives must be shared under the same license.
   (early batches with an OpenAI model, later ones with Gemma 4 31B) and blind-verified by Phi-4.
 - **Product team rows**: labelled requests from the product's own sets (train split only; the
   test rows are held back and never trained on).
-{opus}
-- **Backbone**: `{cfg["backbone"]}`, under its own license (see its model card).
+{opus}- **Backbone**: `{cfg["backbone"]}`, under its own license (see its model card).
 
 ## Citation
 If you use this model, please cite HumAID:
