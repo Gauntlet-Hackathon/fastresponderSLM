@@ -26,6 +26,8 @@ MAX_ECE = 0.10        # absolute ceiling on any field's calibration error
 MAX_ECE_RISE = 0.02   # and no field may get worse than the current best by more than this
 MAX_LATENCY_MS = 100.0
 GAP_TOLERANCE = 0.01
+# One bad seed can inflate the measured spread; cap the bar so the loop does not reject everything.
+MAX_NEED = 0.02
 # Metrics that make up the real-text score (only those present in the report count).
 REAL_METRICS = ("is_request_accuracy", "needs_f1", "request_kind_accuracy")
 SCORED_SUFFIXES = ("_accuracy", "_f1", "location_exact")
@@ -58,29 +60,33 @@ def summarize(result: dict[str, Any]) -> dict[str, Any]:
         "consistency_changed_pct": both.get("consistency_changed_pct"),
         "signature": signature(result["config"]),
         "reused": bool(result.get("reused_weights_from")),
+        "backbone": result["config"].get("backbone"),
     }
 
 
 def signature(cfg: dict[str, Any]) -> str:
     """Config identity ignoring seed and output paths, to group seed repeats."""
-    skip = {"seed", "out_dir", "data_dir"}
+    skip = {"seed", "out_dir", "data_dir", "purpose"}
     return json.dumps({k: v for k, v in sorted(cfg.items()) if k not in skip}, sort_keys=True)
 
 
 def seed_spread(candidate: dict[str, Any], runs_dir: Path | None) -> float | None:
-    """Standard deviation of real-text score across finished runs that differ only by seed."""
+    """Run-to-run noise for the candidate's backbone: the largest standard deviation of real-text
+    score within any group of finished runs that differ only by seed (the seed repeats of the
+    baseline). It applies to every experiment on that backbone, not only to seed repeats."""
     if runs_dir is None:
         return None
-    scores = []
+    groups: dict[str, list[float]] = {}
     for p in sorted(runs_dir.glob("*/result.json")):
         try:
             s = summarize(json.loads(p.read_text()))
         except (KeyError, json.JSONDecodeError):
             continue  # runs from before dev reports existed
-        if (s["signature"] == candidate["signature"] and s["real_score"] is not None
+        if (s["backbone"] == candidate["backbone"] and s["real_score"] is not None
                 and not s["reused"]):
-            scores.append(s["real_score"])
-    return round(statistics.stdev(scores), 4) if len(scores) >= 2 else None
+            groups.setdefault(s["signature"], []).append(s["real_score"])
+    spreads = [statistics.stdev(v) for v in groups.values() if len(v) >= 2]
+    return round(max(spreads), 4) if spreads else None
 
 
 def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
@@ -99,7 +105,7 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
     if champ is None:
         return not fails, fails or ["first run: becomes the baseline"]
 
-    need = max(MIN_GAIN, 2 * spread) if spread else MIN_GAIN
+    need = min(max(MIN_GAIN, 2 * spread), MAX_NEED) if spread else MIN_GAIN
     gain = (cand["real_score"] or 0) - (champ["real_score"] or 0)
     if gain < need:
         fails.append(f"real-text score {cand['real_score']} vs {champ['real_score']}: "
@@ -122,10 +128,15 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
 
 def compare(candidate: Path, champion: Path, runs_dir: Path | None = None,
             promote: bool = False) -> dict[str, Any]:
-    cand = summarize(json.loads(candidate.read_text()))
+    result = json.loads(candidate.read_text())
+    cand = summarize(result)
     champ = json.loads(champion.read_text()) if champion.exists() else None
     spread = seed_spread(cand, runs_dir)
     ok, reasons = gates(cand, champ, spread)
+    if result["config"].get("purpose") == "seed" and ok:
+        # A seed repeat measures run-to-run noise; promoting the luckiest seed would bake that
+        # noise into the bar every later run has to beat.
+        ok, reasons = False, ["seed repeat: measures noise, never promoted"]
     decision = {"candidate": cand, "champion": champ and champ["run"], "seed_spread": spread,
                 "promote": ok, "reasons": reasons,
                 "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}

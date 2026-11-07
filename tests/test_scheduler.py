@@ -30,7 +30,7 @@ def test_launches_first_pending_with_resolved_reuse():
 def test_waits_while_a_run_is_going_and_passes_overrides():
     assert next_action(Q, st(active=["base"]))["action"] == "wait"
     act = next_action(Q, st(decisions={"base": dec(True)}))
-    assert act["inputs"]["overrides"] == "seed=7"
+    assert act["inputs"]["overrides"] == 'seed=7 purpose="seed"'
 
 
 def test_seed_repeats_do_not_count_as_rejections():
@@ -85,6 +85,22 @@ def test_queue_overrides_round_trip_with_types():
             continue
         act = next_action({**q, "items": [item]}, State({}, [], {}, []))
         parsed = dict(parse_override(kv) for kv in act["inputs"]["overrides"].split())
-        assert parsed == item.get("overrides", {}), item["name"]
+        want = {**item.get("overrides", {}), **({"purpose": item["purpose"]}
+                                                  if item.get("purpose") else {})}
+        assert parsed == want, item["name"]
         for k, v in parsed.items():
-            assert type(v) is type(item["overrides"][k]), (item["name"], k)
+            assert type(v) is type(want[k]), (item["name"], k)
+
+
+def test_no_launches_in_the_morning_window():
+    q = {**Q, "launch_cutoff_utc": "10:30", "resume_utc": "14:30"}
+    assert next_action(q, st(), "11:00")["action"] == "wait"
+    assert next_action(q, st(), "10:29")["action"] == "launch"
+    assert next_action(q, st(), "14:30")["action"] == "launch"
+
+
+def test_backbone_baselines_do_not_count_as_rejections():
+    q = {**Q, "items": [dict(Q["items"][0]), {**Q["items"][2], "purpose": "baseline"},
+                        *Q["items"][3:]]}
+    act = next_action(q, st(decisions={"base": dec(True), "lr": dec(False), "drop": dec(False)}))
+    assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-ep"

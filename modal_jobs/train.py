@@ -45,6 +45,7 @@ app = modal.App("rescue-tagger", image=image)
 
 @app.function(
     gpu="L4",
+    cpu=4,  # the latency gate times CPU inference with 4 threads; reserve them
     timeout=4 * 60 * 60,
     volumes={"/runs": runs},
     secrets=[modal.Secret.from_dict({"HF_TOKEN": os.environ.get("HF_TOKEN", "")})],

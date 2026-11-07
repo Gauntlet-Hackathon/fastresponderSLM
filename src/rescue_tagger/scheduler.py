@@ -1,4 +1,5 @@
-"""Overnight loop driver, run by .github/workflows/loop.yml every 30 minutes.
+"""Overnight loop driver, run by .github/workflows/loop.yml when a train run finishes and every
+30 minutes.
 
   python -m rescue_tagger.scheduler tick  [--dry-run]
   python -m rescue_tagger.scheduler final [--dry-run]
@@ -9,7 +10,7 @@ stop rule has hit. `final` scores the current best model on the test sets once (
 
 Stop rules (the loop then waits for a person):
   - max_runs trained runs reached (re-scoring an existing model does not count)
-  - `max_rejections` rejected runs in a row (seed repeats don't count: they're expected to tie)
+  - `max_rejections` rejected runs in a row (seed repeats and baselines don't count)
   - the synthetic-vs-real gap widened on 2 runs in a row
   - the same queue item failed twice
 """
@@ -54,7 +55,14 @@ def resolve_reuse(spec: str, run_dirs: list[str]) -> str | None:
     return matches[-1] if matches else None
 
 
-def next_action(queue: dict[str, Any], st: State) -> dict[str, Any]:
+def in_quiet_window(queue: dict[str, Any], hhmm: str) -> bool:
+    """No new launches from `launch_cutoff_utc` until `resume_utc`, so the morning test-set check
+    finds nothing running and scores a best model that can no longer change under it."""
+    start, end = queue.get("launch_cutoff_utc"), queue.get("resume_utc")
+    return bool(start and end and start <= hhmm < end)
+
+
+def next_action(queue: dict[str, Any], st: State, hhmm: str | None = None) -> dict[str, Any]:
     """Pure decision: {"action": "launch", ...} | {"action": "wait"|"stop", "why": ...}."""
     night, items = queue["night"], queue["items"]
     max_parallel = queue.get("max_parallel", 1)
@@ -76,8 +84,10 @@ def next_action(queue: dict[str, Any], st: State) -> dict[str, Any]:
         if d["promote"]:
             rejections = gap_streak = 0
             continue
-        if item.get("purpose") == "seed":
-            continue  # seed repeats are expected to tie; they count toward neither streak
+        if item.get("purpose") in ("seed", "baseline"):
+            # Seed repeats are expected to tie, and a baseline on another backbone is a comparison,
+            # not a tuning step; neither counts toward the rejection or gap streaks.
+            continue
         rejections += 1
         gap_streak = gap_streak + 1 if any("gap widened" in r for r in d["reasons"]) else 0
         if gap_streak >= 2:
@@ -92,10 +102,14 @@ def next_action(queue: dict[str, Any], st: State) -> dict[str, Any]:
                 "why": "queue finished" if not st.active else "last runs still going"}
     if len(st.active) >= max_parallel:
         return {"action": "wait", "why": f"{len(st.active)} run(s) in progress"}
+    if hhmm and in_quiet_window(queue, hhmm):
+        return {"action": "wait", "why": f"morning test-set window ({hhmm} UTC)"}
     item = pending[0]
+    overrides = dict(item.get("overrides", {}))
+    if item.get("purpose"):
+        overrides["purpose"] = item["purpose"]
     inputs = {"config": item["config"], "publish": "false", "final": "false",
-              "overrides": " ".join(f"{k}={json.dumps(v, separators=(',', ':'))}"
-                                    for k, v in item.get("overrides", {}).items()),
+              "overrides": _overrides(overrides),
               "run_name": run_name(night, item), "reuse": ""}
     if item.get("reuse"):
         src = resolve_reuse(item["reuse"], st.run_dirs)
@@ -104,6 +118,10 @@ def next_action(queue: dict[str, Any], st: State) -> dict[str, Any]:
                     "why": f"no run matches {item['reuse']}"}
         inputs["reuse"] = src
     return {"action": "launch", "inputs": inputs}
+
+
+def _overrides(d: dict[str, Any]) -> str:
+    return " ".join(f"{k}={json.dumps(v, separators=(',', ':'))}" for k, v in d.items())
 
 
 # ---- IO: GitHub Actions and the Modal volume -------------------------------------------------
@@ -177,7 +195,7 @@ def tick(dry_run: bool = False) -> dict[str, Any]:
     st = State(decisions, active, failures, dirs, {n for n in succeeded if n.startswith("loop-")})
     skipped: list[str] = []
     while True:
-        act = next_action(queue, st)
+        act = next_action(queue, st, time.strftime("%H:%M", time.gmtime()))
         if act["action"] != "skip":
             break
         skipped.append(f"{act['item']}: {act['why']}")
@@ -199,16 +217,19 @@ def final(dry_run: bool = False) -> dict[str, Any]:
     day = time.strftime("%Y-%m-%d", time.gmtime())
     name = f"final-{day}"
     active, _, _ = _github_runs()
-    dirs = _dirs(vol)
-    if name in dirs or name in active:
+    if name in active:
+        return {"action": "wait", "why": f"{name} is running"}
+    if (name in _dirs(vol)
+            and "result.json" in {e.path.rsplit("/", 1)[-1] for e in vol.listdir(name)}):
         return {"action": "wait", "why": f"{name} already scored"}
     if active:
-        # Score the best model only once nothing can replace it; retried until 14:30 UTC.
+        # Score the best model only once nothing can replace it; retried until 14:37 UTC.
         return {"action": "wait", "why": f"{len(active)} run(s) still going"}
     queue = yaml.safe_load(QUEUE.read_text(encoding="utf-8"))
-    cfg = next((i["config"] for i in queue["items"]
-                if run_name(queue["night"], i) == champ["run"]), "configs/train_laya.yaml")
-    inputs = {"config": cfg, "publish": "false", "final": "true", "overrides": "",
+    item = next((i for i in queue["items"] if run_name(queue["night"], i) == champ["run"]),
+                {"config": "configs/train_laya.yaml"})
+    inputs = {"config": item["config"], "publish": "false", "final": "true",
+              "overrides": _overrides(item.get("overrides", {})),
               "run_name": name, "reuse": champ["run"]}
     if not dry_run:
         _dispatch(inputs, os.environ.get("GITHUB_REF_NAME", "main"))

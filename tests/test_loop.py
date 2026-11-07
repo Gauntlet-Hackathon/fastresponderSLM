@@ -61,7 +61,7 @@ def test_seed_spread_raises_the_bar():
 
 
 def test_compare_writes_champion_and_measures_seed_spread(tmp_path):
-    for i, (real, seed) in enumerate([(0.80, 1), (0.84, 2)]):
+    for i, (real, seed) in enumerate([(0.80, 1), (0.812, 2)]):
         d = tmp_path / f"r{i}"
         d.mkdir()
         (d / "result.json").write_text(json.dumps(_result(f"r{i}", real=real, seed=seed)))
@@ -70,7 +70,7 @@ def test_compare_writes_champion_and_measures_seed_spread(tmp_path):
     assert first["promote"] and json.loads(champ.read_text())["run"] == "r0"
     second = compare(tmp_path / "r1" / "result.json", champ, tmp_path, promote=True)
     assert second["seed_spread"] is not None
-    assert not second["promote"]  # +0.04 does not beat 2x the 0.028 spread between seeds
+    assert not second["promote"]  # +0.012 does not beat 2x the 0.0085 spread between seeds
 
 
 def test_eval_reads_are_logged(tmp_path):
@@ -90,3 +90,34 @@ def test_small_gap_noise_does_not_count_as_widening():
     champ = summarize(_result("c", real=0.80, synth=0.95))
     ok, why = gates(summarize(_result("a", real=0.80, synth=0.955)), champ)
     assert not ok and not any("gap" in w for w in why)
+
+
+def test_seed_repeats_are_never_promoted(tmp_path):
+    r = _result("s", real=0.95, synth=0.96)
+    r["config"]["purpose"] = "seed"
+    (tmp_path / "r.json").write_text(json.dumps(r))
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(summarize(_result("c", real=0.80))))
+    d = compare(tmp_path / "r.json", champ, None, promote=True)
+    assert not d["promote"] and json.loads(champ.read_text())["run"] == "c"
+
+
+def test_baseline_seed_noise_applies_to_other_experiments(tmp_path):
+    for i, (real, seed) in enumerate([(0.80, 1), (0.812, 2)]):
+        d = tmp_path / f"s{i}"
+        d.mkdir()
+        (d / "result.json").write_text(json.dumps(_result(f"s{i}", real=real, seed=seed)))
+    exp = _result("lr", real=0.815, synth=0.96)
+    exp["config"]["lr_encoder"] = 2e-5  # different config, same backbone
+    (tmp_path / "lr.json").write_text(json.dumps(exp))
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(summarize(_result("s0", real=0.80))))
+    d = compare(tmp_path / "lr.json", champ, tmp_path)
+    assert d["seed_spread"] is not None
+    assert not d["promote"]  # +0.015 clears MIN_GAIN but not 2x the 0.0085 spread
+
+
+def test_gain_bar_is_capped_when_seed_noise_is_large():
+    champ = summarize(_result("c", real=0.80))
+    cand = summarize(_result("a", real=0.825, synth=0.97))
+    assert gates(cand, champ, spread=0.05)[0]  # bar capped at 0.02, not 0.10
