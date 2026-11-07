@@ -78,10 +78,4 @@ items:
      overrides: {lr_encoder: 5.0e-5, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
   - {name: laya-v10-seed7, config: configs/train_laya.yaml, purpose: seed,
      overrides: {lr_encoder: 5.0e-5, seed: 7, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
-  # lr 5e-5 won by more than the seed spread measured at 3e-5, on one seed: repeat it at the new
-  # setting before trusting it, then bracket it.
-  - {name: laya-lr5e-5-seed7, config: configs/train_laya.yaml, purpose: seed,
-     overrides: {lr_encoder: 5.0e-5, seed: 7}}
-  - {name: laya-lr5e-5-seed21, config: configs/train_laya.yaml, purpose: seed,
-     overrides: {lr_encoder: 5.0e-5, seed: 21}}
-  - {name: laya-lr4e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 4.0e-5}}
+  # Paawan 21:19: no further runs after v10; the remaining seed repeats were dropped.
