@@ -164,3 +164,24 @@ more disputed fields rejects the row. Masking can lose labels but never adds a w
   per-source sampling weights, not just loss weights.
 - HumAID's license is non-commercial share-alike. If the weights must be commercially usable,
   disable it in `configs/data.yaml` and retrain.
+
+## Data v10 (Opus rubric labels for real train tweets)
+
+- **d0001-opus** (`rescue_tagger.data.distill`, source `distill`): 2,500 real tweets from the
+  TRAIN split of Munro (1,275) and HumAID (1,225), half labelled request by their source and half
+  not, picked by a hash of the id. Opus 5.5 labelled each with the structured rubric prompt from
+  `llm_baseline` (training time only; the deployed model stays offline). Each replaces its
+  original row in the build, so no text is trained under two labels. Dev, test, Harvey, edge and
+  product rows are never sent.
+- Labels: 599 requests, 223 soft is_request 0.5 (Opus under 0.6 confident); hazards (injury 22,
+  trapped 21, rising water 10, fire 3, on roof 2) and vulnerable people (child 55, medical 22,
+  pregnant 9, elderly 9, disabled 3) at confidence 0.5 or more. Spans are left unknown.
+- Opus agrees with the source's is_request label on 1,796 of 2,277 rows (79%); the rest are
+  mostly donation appeals and news that HumAID/Munro call requests and the rubric does not.
+- `is_stale_post` is left unknown on distill rows: the rubric calls a post naming "a past storm"
+  stale, so Opus marked 625 live-posted archive tweets stale. A distilled row whose original
+  source is turned off (e.g. HumAID for commercial weights) is dropped too.
+- Real dev keeps the source labels, so a v10 model may score a little lower on real-dev
+  is_request even when it follows the rubric better.
+- Share of each epoch: synthetic 0.40, Munro 0.27, HumAID 0.18, distill 0.13, product 0.02.
+

@@ -81,3 +81,23 @@ def test_eval_copy_applies_the_rules_to_test_rows():
     news = _rec("test", {"genre": "news"})
     relabel_requests(news, {"not_request": {"genre": ["news"]}}, eval_copy=True)
     assert news["labels"]["is_request"] is False
+
+
+def test_distilled_rows_replace_their_originals(tmp_path, monkeypatch):
+    import json
+
+    from rescue_tagger.data import build as B
+
+    orig = {"id": "munro:train:1", "text": "help us", "split": "train", "source": "munro"}
+    dist = {"id": "distill:munro:train:1", "text": "help us", "split": "train",
+            "source": "distill", "meta": {"original_id": "munro:train:1"}}
+    (tmp_path / "d").mkdir()
+    (tmp_path / "d" / "a.jsonl").write_text(json.dumps(dist) + "\n")
+    rows = [orig, {"id": "munro:train:2", "text": "x", "split": "train", "source": "munro"}]
+    out = B.merge_distilled(rows, tmp_path, "d/*.jsonl")
+    assert [r["id"] for r in out] == ["munro:train:2", "distill:munro:train:1"]
+    assert B.merge_distilled(rows[1:], tmp_path, "d/*.jsonl") == rows[1:]   # source off
+    bad = [{**orig, "split": "test"}]
+    import pytest
+    with pytest.raises(ValueError):
+        B.merge_distilled(bad, tmp_path, "d/*.jsonl")

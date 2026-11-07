@@ -88,6 +88,22 @@ def relabel_requests(rec: dict[str, Any], src: dict[str, Any], eval_copy: bool =
             rec["labels"].pop(f, None)
 
 
+def merge_distilled(rows: list[dict[str, Any]], root: Path, pattern: str
+                    ) -> list[dict[str, Any]]:
+    """Opus rubric labels for real Munro/HumAID train tweets (rescue_tagger.data.distill)
+    replace the original row, so no text is trained with two different labels. A distilled row
+    whose original is not loaded (its source is turned off, e.g. HumAID for commercial weights)
+    is dropped with it."""
+    loaded = {r["id"] for r in rows}
+    distilled = [rec for p in sorted(glob.glob(str(root / pattern))) for rec in read_jsonl(Path(p))
+                 if rec["meta"]["original_id"] in loaded]
+    originals = {rec["meta"]["original_id"] for rec in distilled}
+    clash = [r["id"] for r in rows if r["id"] in originals and r["split"] != "train"]
+    if clash:
+        raise ValueError(f"distilled rows must come from the train split: {clash[:5]}")
+    return [r for r in rows if r["id"] not in originals] + distilled
+
+
 def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
     raw_dir = root / cfg["raw_dir"]
     out_dir = root / cfg["out_dir"]
@@ -117,6 +133,9 @@ def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
                                         product_texts)
         same_household = [r["id"] for r in recs if r["meta"]["duplicate_group"] in held]
         rows += [r for r in recs if r["id"] not in same_household]
+
+    if src_cfg.get("distill", {}).get("enabled"):
+        rows = merge_distilled(rows, root, src_cfg["distill"]["path"])
 
     for rec in rows:
         w = src_cfg[rec["source"]].get("weight", 1.0)

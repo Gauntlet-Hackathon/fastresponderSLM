@@ -4,7 +4,7 @@ backbone_revision: 1720e3e3357cfe1e281542e223f8273b0890ca34   # pinned
 data_dir: data/processed
 # Bump when training/dev labels change (configs/data.yaml): runs on different label versions are
 # never compared, grouped for seed noise, or promoted over each other.
-data_version: 9  # v9: + implied-hazard batch b0011; v8: + code-switch / old post / third-party batch b0010; v7: + possible-prank batch b0009; v6: + Gemma batch b0008 (incl. Vietnamese); v5: + vague batch b0007; v4: + Gemma batch b0005, + product sets B/C/D
+data_version: 10  # v10: + Opus-labelled real train tweets (distill); v9: + implied-hazard batch b0011; v8: + code-switch / old post / third-party batch b0010; v7: + possible-prank batch b0009; v6: + Gemma batch b0008 (incl. Vietnamese); v5: + vague batch b0007; v4: + Gemma batch b0005, + product sets B/C/D
 out_dir: outputs/laya
 seed: 13
 max_length: 256
@@ -20,6 +20,6 @@ bf16: true
 log_every: 100
 eval_every_steps: 750       # dev check twice per epoch
 early_stop_patience: 3      # stop after 3 dev checks with no new best
-source_share: {synthetic: 0.48, munro: 0.3, humaid: 0.2, product: 0.02}
+source_share: {synthetic: 0.4, munro: 0.27, humaid: 0.18, distill: 0.13, product: 0.02}
 checkpoint_product_weight: 0.2   # product dev rows: 20% of the checkpoint score, relative to the first check
 head_weights: {tokens: 1.0}

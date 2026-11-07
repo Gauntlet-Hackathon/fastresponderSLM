@@ -21,6 +21,9 @@ sources:
     weight: 1.0
     batches: data/synthetic/batches/*.jsonl
     split_pct: {dev: 10, test: 5}
+  distill:                   # Opus rubric labels for real Munro/HumAID TRAIN tweets (training only;
+    enabled: true            # rescue_tagger.data.distill); each replaces its original row
+    path: data/distill/*.jsonl
   product:                   # product team's hand-written sets C and D, train/dev rows only
     enabled: true            # (data/product/README.md); the held-back test rows are never here
     path: data/product/rescue_eval_train_dev.jsonl
