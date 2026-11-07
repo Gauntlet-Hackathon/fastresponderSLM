@@ -1,0 +1,154 @@
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 736 column 3 (char 2298)", "seed": 320006}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 733 column 3 (char 2314)", "seed": 320010}
+{"error": "ValueError: LOCATION quote not found in text: 'Allen Parkway y la Memorial'", "seed": 320030}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 723 column 3 (char 2311)", "seed": 320033}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 734 column 1 (char 2296)", "seed": 320113}
+{"error": "ValueError: LOCATION quote not found in text: 'la 59 y West Gray'", "seed": 320167}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 727 column 1 (char 3746)", "seed": 320171}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 730 column 1 (char 2304)", "seed": 320185}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 730 column 1 (char 2287)", "seed": 320194}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 733 column 1 (char 2305)", "seed": 320200}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 706 column 1 (char 2447)", "seed": 320212}
+{"error": "ValueError: LOCATION quote not found in text: '123 Main Street'", "seed": 320225}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 733 column 1 (char 2314)", "seed": 320246}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 726 column 3 (char 2354)", "seed": 320251}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 734 column 3 (char 2297)", "seed": 320255}
+{"error": "ValueError: TIME quote not found in text: 'las 3 AM'", "seed": 320256}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 714 column 3 (char 2429)", "seed": 320269}
+{"error": "verify: vague row read as help=no_help", "seed": 320002, "text": "Everything is just so quiet since this morning."}
+{"error": "verify: vague row read as help=no_help", "seed": 320004, "text": "I am at 4200 Clinton Drive."}
+{"error": "verify: vague row read as help=no_help", "seed": 320007, "text": "Honestly I can't believe how the rain just keeps coming and going in this city, it's like we are in a tropical rainforest now. I'm just sitting here at Memorial Park around 10:00 AM wondering if anyone else is seeing this weather or if I'm just losing my mind staring at the clouds."}
+{"error": "verify: vague row read as help=no_help", "seed": 320012, "text": "Ugh, I just can't believe the weather in this city, my neighbor's cat always gets so spooked by the thunder and honestly my mood is just totally everywhere right now. 5402 Telephone Road."}
+{"error": "verify: vague row read as help=no_help", "seed": 320015, "text": "Man, I can't believe it is already 4 PM on a Tuesday. I remember when this neighborhood used to be so quiet, just the sound of the wind in the oaks. Currently sitting here at 1215 Shepherd Drive and just thinking about how weird everything feels right now."}
+{"error": "verify: vague row read as help=no_help", "seed": 320016, "text": "Ay Dios mio, yo no puedo creer que esto esté pasando otra vez, es que una siempre piensa que ya aprendimos la lección pero miren nada más cómo se pone el cielo, yo me acuerdo que mi tía decía que así empezó todo aquel año y la verdad es que me siento súper nerviosa con todo este ruido y no sé ni qué pensar ahora mismo..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320017, "text": "Still waiting here since this morning."}
+{"error": "verify: vague row read as help=no_help", "seed": 320022, "text": "Dispatcher note: Caller mentioned 2200 Kingwood Drive. Dice que es muy tarde already."}
+{"error": "verify: vague row read as help=no_help", "seed": 320023, "text": "Ay Dios mio, no puedo creer que esto esté pasando otra vez en Houston, yo me acuerdo cuando vivía en el otro lado de la ciudad pero ahora estoy aquí en 5401 Telephone Rd y pues no sé ni qué decir, solo miro por la ventana y pienso en la vida..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320031, "text": "Sigo esperando noticias."}
+{"error": "verify: vague row read as help=no_help", "seed": 320034, "text": "Just thinking about my uncle over by Rice University and Texas Medical Center."}
+{"error": "verify: vague row read as help=no_help", "seed": 320035, "text": "I can't believe how wild the weather is in this city. I remember when we used to just have a little bit of rain and everything was fine but now it is just... I am just sitting here at 1420 Westheimer Rd thinking about how crazy this whole thing is."}
+{"error": "verify: vague row read as help=no_help", "seed": 320036, "text": "En 1200 Main St hace una hora."}
+{"error": "verify: vague row read as help=no_help", "seed": 320039, "text": "Ay Dios mío, no puedo creer que esto esté pasando otra vez en Houston, yo me acuerdo que en mi pueblo siempre llovía pero no así, aquí estoy viendo el agua y pensando en la vida, justo acá por Kingwood Drive y Wedelbend Drive, qué cosas tiene la gente, yo no sé ni qué decir ya..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320040, "text": "Sigo pensando en lo de mi tío en 5400 Tidwell Road..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320041, "text": "DIOS MIO!!! 1500 ALLEN PARKWAY!!! ESTOY EN SHOCK!!!!"}
+{"error": "verify: vague row read as help=no_help", "seed": 320042, "text": "OH MY GOD!!! RIGHT BY THE GALLERIA!! WHAT IS HAPPENING?!?!"}
+{"error": "verify: vague row read as help=no_help", "seed": 320047, "text": "I can't believe the rain just won't stop and honestly my cat is acting so weird today. Just sitting here at 1200 Washington Avenue thinking about how I forgot to buy more coffee beans yesterday. I wonder if the mail is even running."}
+{"error": "verify: vague row read as help=no_help", "seed": 320048, "text": "Just thinking about all the rain and how weird it is that the mail stopped coming. I am over at 7210 Bissonnet Street and honestly just staring at the wall right now. It is so quiet."}
+{"error": "verify: vague row read as help=no_help", "seed": 320050, "text": "Ay dios mio, I can't believe the rain just keeps going and going, it's just like that time I lost my umbrella at the Galleria... anyway, 1204 Westheimer Rd, Houston... no sé qué hacer with all this noise outside, just thinking about everything right now."}
+{"error": "verify: vague row read as help=no_help", "seed": 320052, "text": "I am just wondering about the current situation."}
+{"error": "verify: vague row read as help=no_help", "seed": 320053, "text": "Ay Dios mio, just looking at the rain from the window here at 1425 Westheimer Rd... me acuerdo de when I lived in the old neighborhood and how it used to be so different, just thinking about everything and the wind blowing outside, que locura."}
+{"error": "verify: vague row read as help=no_help", "seed": 320055, "text": "Ay Dios mío, no puedo creer que esto esté pasando otra vez aquí en Houston, me acuerdo cuando me mudé a 4202 Westheimer Rd y todo se veía tan tranquilo, pero miren ahora, qué cosa más loca el clima de Texas, no sé ni qué pensar ya..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320062, "text": "aki en 1200 bunker hill rd hace 1 hora"}
+{"error": "verify: vague row read as help=no_help", "seed": 320064, "text": "Ay dios mio, I can't believe this rain. Just looking out the window here at 1250 Airline Drive and thinking about how weird the sky looks today. Como que todo está muy gris. It's been like this since 4 PM and I just don't know anymore..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320069, "text": "Still at 510 Navigation Boulevard. It's been since yesterday."}
+{"error": "verify: vague row read as help=no_help", "seed": 320071, "text": "I can't believe the weather we're having. Just thinking about that one time I went to the zoo. Currently sitting here by the intersection of Richmond Ave and Gessner Rd just staring at the rain."}
+{"error": "verify: vague row read as help=no_help", "seed": 320074, "text": "en Bunker Hill y Washington... k pasa aqui"}
+{"error": "verify: vague row read as help=no_help", "seed": 320075, "text": "Ay Dios mío, no puedo creer que ya sea medianoche y sigo aquí pensando en todo lo que pasó el año pasado con las lluvias, qué locura es vivir así, uno nunca sabe..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320077, "text": "Kirby and West Alabama, ahorita."}
+{"error": "verify: vague row read as help=no_help", "seed": 320079, "text": "Sigo pensando en lo que pasó ayer."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=address verify=none; people_count: spec=None verify=0", "seed": 320081, "text": "Still thinking about 1412 Westheimer Rd."}
+{"error": "verify: vague row read as help=no_help", "seed": 320082, "text": "Ay Dios mío, no puedo creer que estemos pasando por esto otra vez, me acuerdo cuando pasó lo mismo hace tres días y todo el mundo estaba nervioso, yo solo estoy aquí pensando en la vida y en cómo cambia todo tan rápido en un segundo..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320087, "text": "Just thinking about how weird the weather has been lately, it's honestly wild. I'm just sitting here at 1210 Harrisburg Boulevard since 3 PM and wondering if anyone else is seeing this rain. It's just... wow."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=none; people_count: spec=None verify=0", "seed": 320088, "text": "Sigo pensando en mi tío, allá por el bayou."}
+{"error": "verify: vague row read as help=no_help", "seed": 320089, "text": "Just watching the rain fall."}
+{"error": "verify: vague row read as help=no_help", "seed": 320090, "text": "en 1300 allen pkwy"}
+{"error": "verify: vague row read as help=no_help", "seed": 320092, "text": "still h2o everywhere since 4am"}
+{"error": "verify: vague row read as help=no_help", "seed": 320093, "text": "Ay dios mio, it is just so crazy out here right now, like I can't even believe the weather in this city, seriously... anyway I am just hanging out by the corner of Jeff Davis and Elgin, just thinking about how weird everything looks, no sé qué decir, just kind of waiting and watching the street."}
+{"error": "verify: vague row read as help=no_help", "seed": 320094, "text": "Just staring at the water and thinking about how the weather always acts up in this city, honestly it's just a lot to take in right now while I'm sitting here by the bayou."}
+{"error": "verify: vague row read as help=no_help", "seed": 320095, "text": "Cerca del Addicks Reservoir..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320096, "text": "Caller just mentioned 1420 Bunker Hill Road around 3 PM."}
+{"error": "verify: vague row read as help=no_help", "seed": 320100, "text": "Just staring at the rain."}
+{"error": "verify: vague row read as help=no_help", "seed": 320102, "text": "Solo pensando en el agua... just wondering if anyone is seeing this."}
+{"error": "verify: vague row read as help=no_help", "seed": 320103, "text": "bissonnet and hwy 6 rite now"}
+{"error": "verify: vague row read as help=no_help", "seed": 320105, "text": "Mi tío está aquí, just waiting and pensando en todo."}
+{"error": "verify: vague row read as help=no_help", "seed": 320110, "text": "Dios mio, looking out the window at 1210 Bunker Hill Road and it is just... no sé, everything is so grey and the rain just keeps falling, me recuerda a when I was little in Mexico, just watching the clouds and thinking about life, que locura everything right now."}
+{"error": "verify: vague row read as help=no_help", "seed": 320112, "text": "Cerca del bayou... qué onda?"}
+{"error": "verify: vague row read as help=no_help", "seed": 320117, "text": "Near Southwest Freeway and 610, 3pm."}
+{"error": "verify: vague row read as help=no_help", "seed": 320120, "text": "Aquí cerca del Ben Taub Hospital hace una hora."}
+{"error": "verify: vague row read as help=no_help", "seed": 320122, "text": "I am just watching the rain fall."}
+{"error": "verify: vague row read as help=no_help", "seed": 320123, "text": "Solo mirando la lluvia caer."}
+{"error": "verify: vague row read as help=no_help", "seed": 320124, "text": "Sigo pensando en 1200 Main Street, qué pesar."}
+{"error": "verify: vague row read as help=no_help", "seed": 320125, "text": "Ay dios mío, no puedo creer que ya sean las tres de la tarde y siga así el cielo, me acuerdo que mi tía decía que así se ponía el clima hace años pero esto se siente diferente, no sé ni qué pensar ya."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=address; people_count: spec=None verify=1", "seed": 320128, "text": "Near the bayou..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320130, "text": "1600 allen parkway hmmm"}
+{"error": "verify: vague row read as help=no_help", "seed": 320131, "text": "I just can't believe how the weather has turned out this year, it really reminds me of that one trip we took to Austin ages ago when it rained for a week straight and we spent the whole time eating at that one diner with the neon sign. Honestly just sitting here by the bayou thinking about it all."}
+{"error": "verify: vague row read as help=needs_help", "seed": 320132, "text": "¡¡¡AYUDA POR FAVOR!!! ¡¡¡ESTAMOS CERCA DE LA SAM HOUSTON TOLLWAY Y EL GALLSTON!!! ¡¡¡NO SE QUE HACER!!!"}
+{"error": "verify: vague row read as help=no_help", "seed": 320134, "text": "I am at 1212 Fannin Street."}
+{"error": "verify: vague row read as help=no_help", "seed": 320136, "text": "Ay Dios mío, no puedo creer que ya sean las 4 de la tarde y sigo pensando en todo lo que pasó el año pasado con el clima aquí en Houston, qué locura, yo estoy ahorita en 9500 Hillcroft Avenue y pues no sé ni qué decir, solo mirando por la ventana..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320137, "text": "Just thinking about the family over at the intersection of Westheimer and Loop 610."}
+{"error": "verify: vague row read as help=no_help", "seed": 320138, "text": "Ay Dios mío, no puedo creer que esto esté pasando otra vez en Houston, me recuerda a aquel viaje que hice a México hace años donde también llovió pero no así, aquí en el 1204 West Gray Street todo se siente tan raro, como que no sé ni qué pensar ya."}
+{"error": "verify: vague row read as help=no_help", "seed": 320140, "text": "1234 BELLAIRE BOULEVARD!!! RIGHT NOW!!!!"}
+{"error": "verify: vague row read as help=needs_help", "seed": 320142, "text": "stuck @ GRB convention center h2o everywhere"}
+{"error": "verify: vague row read as help=no_help", "seed": 320144, "text": "I am just wondering about the weather."}
+{"error": "verify: vague row read as help=no_help", "seed": 320147, "text": "It has been raining since this morning."}
+{"error": "verify: vague row read as help=no_help", "seed": 320148, "text": "It has been raining since this morning."}
+{"error": "verify: vague row read as help=no_help", "seed": 320149, "text": "near the bayou h2o everywhere"}
+{"error": "verify: vague row read as help=no_help", "seed": 320150, "text": "Just thinking about my uncle over by Washington and Elgin."}
+{"error": "verify: vague row read as help=no_help", "seed": 320152, "text": "Ugh, I honestly cannot believe how the rain just won't stop in this city, it is just so typical for Houston and I was actually planning on going to that new bakery today but everything is just a mess. I'm just sitting here at 7210 Bissonnet Street thinking about how weird the sky looks right now."}
+{"error": "verify: vague row read as help=no_help", "seed": 320155, "text": "Ay Dios, tanta agua..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320157, "text": "Estoy aquí en 12345 Bellaire Blvd desde las tres de la tarde."}
+{"error": "verify: vague row read as help=no_help", "seed": 320159, "text": "Ay Dios mío, no puedo creer que estemos pasando por esto otra vez en Houston, me acuerdo que mi tía decía que el clima estaba loco pero esto ya es demasiado, estoy aquí en 14500 Cypress Creek Parkway y pues no sé ni qué decir, solo mirando por la ventana y pensando en la vida..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320161, "text": "near hermann park an hour ago"}
+{"error": "verify: vague row read as help=no_help", "seed": 320162, "text": "I can't believe the weather we are having in this city. I remember when the parks used to be so green and the humidity wasn't this bad in the summer. Just sitting here thinking about things near Beltway 8 and the Westpark Tollway. It is just so strange."}
+{"error": "verify: vague row read as help=no_help", "seed": 320163, "text": "En 1204 Westheimer Rd."}
+{"error": "verify: vague row read as help=no_help", "seed": 320165, "text": "Still at 1210 Memorial Drive since this morning."}
+{"error": "verify: vague row read as help=no_help", "seed": 320168, "text": "Llamada recibida. Reportan 23610 Richmond Ave."}
+{"error": "verify: vague row read as help=no_help", "seed": 320169, "text": "Just watching the rain."}
+{"error": "verify: vague row read as help=no_help", "seed": 320172, "text": "Just sitting here at the corner of Kirby Drive and West Alabama."}
+{"error": "verify: vague row read as help=no_help", "seed": 320173, "text": "at fannin n holman rite now 2pm"}
+{"error": "verify: vague row read as help=no_help", "seed": 320175, "text": "Ay Dios mío, no puedo creer que ya sean las 4 de la tarde y sigo viendo el cielo así de gris, me recuerda a cuando vivía en el pueblo pero aquí en Houston todo es diferente, estoy aquí por la I-45 y la calle North Freeway, simplemente no sé ni qué pensar con todo este relajo."}
+{"error": "verify: vague row read as help=no_help", "seed": 320177, "text": "Just sitting here looking at all the rain and thinking about that old bookstore I used to visit and how the coffee always smelled like cinnamon. I am over at 1210 Fannin Street and just... I don't even know what to say anymore."}
+{"error": "verify: vague row read as help=no_help", "seed": 320178, "text": "Ay Dios mio, look at the rain outside. I remember when we moved here years ago and it was so different. No sé what to think anymore. Just staring at the window here at 2215 Kingwood Drive. It is already 4 PM and the sky is just grey."}
+{"error": "verify: vague row read as help=no_help", "seed": 320179, "text": "Ay Dios mío, no puedo creer que esto esté pasando otra vez, es que uno piensa que ya aprendimos pero miren nada más cómo se pone el cielo, yo estaba pensando que quizás debería haber limpiado el patio el fin de semana pasado pero bueno, ya para qué, ¿será que alguien más está viendo esto?"}
+{"error": "verify: vague row read as help=no_help", "seed": 320180, "text": "I can't believe how crazy the weather has been lately and I was just thinking about that one time I visited the zoo back in the nineties. Anyway, it is now 4 PM and I am just hanging out by the Gulf Freeway and Telephone Road area watching the clouds."}
+{"error": "verify: vague row read as help=no_help", "seed": 320184, "text": "Llama dice que está por Bunker Hill y Washington."}
+{"error": "verify: vague row read as help=no_help", "seed": 320186, "text": "Aquí en 1200 Montrose Boulevard desde hace tres horas."}
+{"error": "verify: vague row read as help=no_help", "seed": 320188, "text": "Sigo pensando en mi tío allá por Eastex Freeway y North Main desde ayer."}
+{"error": "verify: vague row read as help=no_help", "seed": 320189, "text": "aki xr el bayou"}
+{"error": "verify: vague row read as help=no_help", "seed": 320191, "text": "I honestly cannot believe how weird the sky looked about three hours ago, it was like this strange shade of purple that I've never seen before in my life, just totally surreal and I was thinking about that one time we went to the coast back in the nineties and saw something similar though maybe not that deep of a hue..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320192, "text": "jus wonderin if anyne is out there rn"}
+{"error": "verify: vague row read as help=no_help", "seed": 320196, "text": "Still here at 1200 Washington Avenue."}
+{"error": "verify: vague row read as help=no_help", "seed": 320199, "text": "Solo estoy mirando la lluvia caer."}
+{"error": "verify: vague row read as help=no_help", "seed": 320203, "text": "Caller called at 3 PM. Just checking in."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=none; people_count: spec=None verify=1", "seed": 320208, "text": "Sigo pensando en mi tío allá por Gessner y Longbridge."}
+{"error": "verify: vague row read as help=no_help", "seed": 320209, "text": "Ugh I can't believe my favorite coffee shop is closed today of all days. Just sitting here at 4812 Shepherd Drive and honestly just thinking about how weird the sky looks. Like seriously what is even happening right now with everything?"}
+{"error": "verify: vague row read as help=no_help", "seed": 320214, "text": "Aquí en 12300 Fondren Road, desde las seis de la mañana... just waiting."}
+{"error": "verify: vague row read as help=no_help", "seed": 320215, "text": "12345 Bellaire Blvd, hace una hora."}
+{"error": "verify: location_type: spec=landmark verify=address; hazards: spec=[] verify=['rising_water']; people_count: spec=None verify=0", "seed": 320216, "text": "Caller at Westheimer and Shepherd. Dice que is raining hard desde las 4pm."}
+{"error": "verify: vague row read as help=no_help", "seed": 320217, "text": "Ay Dios mío, no puedo creer que estemos pasando por esto otra vez en Houston, me acuerdo cuando me mudé aquí hace años y todo era diferente, yo estoy acá en 12345 Fondren Road pensando en la vida y no sé ni qué decir ya..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320220, "text": "Caller at 5400 Tidwell Road. Around 3 PM."}
+{"error": "verify: vague row read as help=no_help", "seed": 320221, "text": "Aquí en el museo junto al Hermann Park."}
+{"error": "verify: vague row read as help=no_help", "seed": 320224, "text": "I honestly can't even believe what is happening right now, like I was just sitting here thinking about how I forgot to buy more coffee yesterday and now look at the sky, it's been like this since 4 PM and I'm just staring at the wall wondering what the point is."}
+{"error": "verify: vague row read as help=no_help", "seed": 320226, "text": "2100 harrisburg blvd at 4pm"}
+{"error": "verify: vague row read as help=no_help", "seed": 320228, "text": "Still near the bayou since noon."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=address verify=landmark; people_count: spec=None verify=0", "seed": 320229, "text": "1234 Gessner Rd. hace una hora...?"}
+{"error": "verify: vague row read as help=no_help", "seed": 320231, "text": "I was just sitting here thinking about how the wind sounds like a freight train and I remember when we used to have that old oak tree in the backyard but it fell over years ago and honestly I just don't even know what to think anymore with everything going on right now..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320232, "text": "I honestly can't believe how the wind sounded at 3 AM, it was just like this weird humming noise that wouldn't stop and I keep thinking about that one time in high school when the power went out during the dance and we all just stood there in the dark wondering if we should leave or stay."}
+{"error": "verify: vague row read as help=no_help", "seed": 320233, "text": "It is just raining so much."}
+{"error": "verify: vague row read as help=no_help", "seed": 320235, "text": "1234 westheimer rd hace como 3 horas"}
+{"error": "verify: vague row read as help=needs_help", "seed": 320236, "text": "Sigo esperando noticias de mi tía en 1200 Memorial Drive desde hace tres horas."}
+{"error": "verify: vague row read as help=no_help", "seed": 320238, "text": "Sigo pensando en mi tío y en cómo estará todo por allá."}
+{"error": "verify: vague row read as help=no_help", "seed": 320242, "text": "Honestly just sitting here thinking about how crazy the weather has been this year compared to back in the day and I'm just over at 4200 Clinton Drive right now and it's already 3 AM so I guess I'll just keep watching the rain."}
+{"error": "verify: vague row read as help=needs_help", "seed": 320243, "text": "¡¡¡AYUDA EN EL BUFFALO BAYOU HACE DIEZ MINUTOS!!! ¡¡¡NO SE QUÉ HACER!!!"}
+{"error": "verify: vague row read as help=no_help", "seed": 320245, "text": "Cerca de Harrisburg y Polk hace una hora..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320250, "text": "Ay Dios mio, look at the sky right now... seriously, it's like 4 PM and everything is just so grey. Estaba pensando about that one café we used to go to near 1200 Main Street, remember? No sé what is even happening anymore with this weather, just sitting here thinking about how crazy Houston is sometimes."}
+{"error": "verify: vague row read as help=no_help", "seed": 320254, "text": "Still raining since dawn."}
+{"error": "verify: location_type: spec=landmark verify=address; hazards: spec=[] verify=['rising_water']; people_count: spec=None verify=0", "seed": 320260, "text": "near montrose n west ave h2o everywhere"}
+{"error": "verify: vague row read as help=no_help", "seed": 320263, "text": "Llama dice que todo sigue igual desde hace tres horas."}
+{"error": "verify: vague row read as help=no_help", "seed": 320267, "text": "Caller is just stating they are at 1212 Washington Avenue."}
+{"error": "verify: vague row read as help=no_help", "seed": 320268, "text": "en Montrose n West Alabama... q pasa?"}
+{"error": "verify: vague row read as help=no_help", "seed": 320271, "text": "Todo mojado desde ayer."}
+{"error": "verify: vague row read as help=no_help", "seed": 320273, "text": "Ay dios mío, no puedo creer que ya sean las 4 de la tarde y sigo aquí pensando en todo lo que pasó el año pasado con la lluvia, me acuerdo que estaba viendo las noticias y el viento soplaba fuerte, aquí por White Oak Bayou y Northampton, qué cosa más rara es la vida a veces..."}
+{"error": "verify: vague row read as help=no_help", "seed": 320274, "text": "Just staring at the rain."}
+{"error": "verify: vague row read as help=no_help", "seed": 320276, "text": "I can't believe it's already 4 PM and I'm just sitting here at 1200 Fannin Street thinking about how weird the sky looks today. Just... wow."}
+{"error": "verify: vague row read as help=no_help", "seed": 320280, "text": "12100 Memorial Drive at 3:00 PM."}
+{"error": "verify: vague row read as help=no_help", "seed": 320283, "text": "aqi x la I-45 y el loop 610 hace una hora"}
+{"error": "verify: vague row read as help=no_help", "seed": 320284, "text": "It is just raining so hard."}
+{"error": "verify: vague row read as help=no_help", "seed": 320287, "text": "Ay Dios mío, no puedo creer que ya sea mediodía y siga así el clima, yo aquí en 1212 Allen Parkway pensando en todo lo que pasa por la ciudad y que la vida es así de loca a veces."}
+{"error": "verify: vague row read as help=no_help", "seed": 320289, "text": "My uncle has been staring at the rain for hours now."}
+{"error": "verify: vague row read as help=no_help", "seed": 320290, "text": "r u guys nr bay area blvd n nasa pkwy"}
+{"error": "verify: vague row read as help=no_help", "seed": 320291, "text": "Caller reported seeing water at Bay Area Blvd and NASA Pkwy around 3 PM."}
+{"error": "verify: vague row read as help=no_help", "seed": 320292, "text": "I just can't believe how crazy the weather is acting right now, honestly it feels like a movie or something and I was just thinking about that one time I saw a movie about a storm and it reminded me of this and I'm just sitting here wondering what is even happening with everything."}
+{"error": "verify: vague row read as help=no_help", "seed": 320293, "text": "I am just watching the rain fall."}
+{"error": "verify: vague row read as help=no_help", "seed": 320297, "text": "Sigo pendiente de mi tío por la I-10 y Washington."}
+{"error": "verify: vague row read as help=no_help", "seed": 320299, "text": "Llamada recibida a las 3 PM. Reportan situación en 1200 Memorial Drive."}
