@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.rescue.invalid/payloads/extracted.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
+          "enum": [
+            "landmark",
+            "address",
+            "coords",
+            "none"
+          ]
+        },
+        "confidence": {
+          "$ref": "../common.schema.json#/$defs/confidence"
+        }
+      },
+      "required": [
+        "text",
+        "type",
+        "confidence"
+      ]
+    },
+    "people_count": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "../common.schema.json#/$defs/people_count_value"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "confidence": {
+          "$ref": "../common.schema.json#/$defs/confidence"
+        }
+      },
+      "required": [
+        "value",
+        "confidence"
+      ]
+    },
+    "vulnerable": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "child",
+              "elderly",
+              "disabled",
+              "medical",
+              "pregnant"
+            ]
+          },
+          "confidence": {
+            "$ref": "../common.schema.json#/$defs/confidence"
+          }
+        },
+        "required": [
+          "kind",
+          "confidence"
+        ]
+      }
+    },
+    "hazards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "rising_water",
+              "on_roof",
+              "injury",
+              "medical_device_no_power",
+              "fire",
+              "trapped"
+            ]
+          },
+          "confidence": {
+            "$ref": "../common.schema.json#/$defs/confidence"
+          }
+        },
+        "required": [
+          "kind",
+          "confidence"
+        ]
+      }
+    },
+    "time_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "is_stale_post": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "$ref": "../common.schema.json#/$defs/confidence"
+        }
+      },
+      "required": [
+        "text",
+        "is_stale_post",
+        "confidence"
+      ]
+    },
+    "is_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "$ref": "../common.schema.json#/$defs/confidence"
+        }
+      },
+      "required": [
+        "value",
+        "confidence"
+      ]
+    },
+    "spans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string",
+            "pattern": "^[A-Z_]+$"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "label"
+        ]
+      }
+    },
+    "needs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "food",
+              "water",
+              "meds"
+            ]
+          },
+          "hours_without": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "hours_without"
+        ]
+      }
+    },
+    "request_kind": {
+      "enum": [
+        "rescue",
+        "evacuation",
+        "welfare_check",
+        "supply",
+        "other"
+      ]
+    }
+  },
+  "required": [
+    "location",
+    "people_count",
+    "vulnerable",
+    "hazards",
+    "time_ref",
+    "is_request",
+    "spans",
+    "needs",
+    "request_kind"
+  ],
+  "title": "extracted payload",
+  "description": "SLM output contract (03) extended with needs[] and request_kind so every rubric row is decidable from fields."
+}
