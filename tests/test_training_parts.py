@@ -133,3 +133,24 @@ def test_one_duration_covers_a_listed_group_of_needs():
     # "med" inside "immediately" is not a meds keyword.
     assert kinds("need insulin immediately, no food or water for 2 days", "for 2 days") == [
         "food", "water"]
+
+
+def test_soft_labels_train_toward_unsure_and_are_validated():
+    from rescue_tagger.features import encode
+    from rescue_tagger.records import validate_record
+
+    class Tok:
+        def __call__(self, text, truncation, max_length, return_offsets_mapping):
+            return {"input_ids": [1, 2], "attention_mask": [1, 1],
+                    "offset_mapping": [(0, 2), (3, 5)]}
+
+    rec = {"id": "synthetic:x:1", "source": "synthetic", "lang": "en", "text": "it's bad here",
+           "split": "train", "labels": {"is_stale_post": False}, "spans": [],
+           "soft_labels": {"is_request": 0.5}}
+    validate_record(rec)
+    item = encode(rec, Tok(), 16)
+    assert item["is_request"] == 0.5 and item["is_request_mask"] == 1.0
+    with pytest.raises(ValueError):
+        validate_record({**rec, "labels": {"is_request": True}})
+    with pytest.raises(ValueError):
+        validate_record({**rec, "soft_labels": {"is_request": 1.5}})

@@ -63,9 +63,14 @@ def encode(rec: dict[str, Any], tokenizer, max_length: int) -> dict[str, Any]:
         "weight": float(rec.get("weight", 1.0)),
         "people_count": count_class(rec["people_count"]) if "people_count" in rec else IGNORE,
     }
+    soft = rec.get("soft_labels") or {}
     for head in L.BINARY_HEADS:
-        item[head] = float(lab[head]) if head in lab else 0.0
-        item[f"{head}_mask"] = 1.0 if head in lab else 0.0
+        if head in lab:
+            item[head], item[f"{head}_mask"] = float(lab[head]), 1.0
+        elif head in soft:  # e.g. 0.5 for a message too vague to call: learn to be unsure
+            item[head], item[f"{head}_mask"] = float(soft[head]), 1.0
+        else:
+            item[head], item[f"{head}_mask"] = 0.0, 0.0
     for head, kinds in L.MULTI_LABEL_HEADS.items():
         item[head] = [float(lab[head][k]) for k in kinds] if head in lab else [0.0] * len(kinds)
         item[f"{head}_mask"] = 1.0 if head in lab else 0.0

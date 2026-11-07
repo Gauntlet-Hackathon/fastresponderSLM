@@ -124,6 +124,15 @@ def validate_record(rec: dict[str, Any]) -> None:
                 raise ValueError(f"{rid}: unknown need kind {kind!r}")
             if hours is not None and (not isinstance(hours, int | float) or hours < 0):
                 raise ValueError(f"{rid}: need_hours[{kind}] must be >= 0 or null")
+    # Soft targets for a binary head the text cannot settle (a message too vague to call): trained
+    # toward the given probability, never scored, so the head is absent from `labels`.
+    for head, p in (rec.get("soft_labels") or {}).items():
+        if head not in L.BINARY_HEADS:
+            raise ValueError(f"{rid}: soft label for unknown binary head {head!r}")
+        if head in labels:
+            raise ValueError(f"{rid}: {head} has both a label and a soft label")
+        if isinstance(p, bool) or not isinstance(p, int | float) or not 0 <= p <= 1:
+            raise ValueError(f"{rid}: soft label {head} must be a probability")
     if "weight" in rec and not (0 < rec["weight"] <= 1):
         raise ValueError(f"{rid}: weight must be in (0, 1]")
     if rec.get("gold_extracted") is not None:

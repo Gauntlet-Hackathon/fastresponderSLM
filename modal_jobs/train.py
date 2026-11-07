@@ -255,3 +255,33 @@ def compare_run(run: str) -> str:
 @app.local_entrypoint()
 def compare(run: str) -> None:
     print(compare_run.remote(run))
+
+
+@app.function(cpu=2, timeout=1800, volumes={"/runs": runs},
+              secrets=[modal.Secret.from_dict({"HF_TOKEN": os.environ.get("HF_TOKEN", "")})])
+def publish_run(run: str, final_run: str = "") -> dict:
+    """Publish a finished run's calibrated model (gated, CC BY-NC-SA) to the Hugging Face Hub as a
+    new revision. The card carries the run's dev reports, plus the test-set reads of `final_run`
+    (the morning check of these same weights) when given. Reads nothing new."""
+    import json
+
+    from rescue_tagger.publish import publish
+
+    reports = {p.stem.removeprefix("eval_"): json.loads(p.read_text())
+               for p in sorted(Path(f"/runs/{run}").glob("eval_*.json"))}
+    if final_run:
+        res = json.loads(Path(f"/runs/{final_run}/result.json").read_text())
+        if res.get("reused_weights_from") != run:
+            raise ValueError(f"{final_run} did not score {run}'s weights")
+        reports.update({f"final:{k}": v for k, v in res["eval"].items()
+                        if not k.startswith("dev_")})
+    out = publish(Path(f"/runs/{run}/best"), run_name=run, eval_reports=reports)
+    runs.commit()
+    return out
+
+
+@app.local_entrypoint()
+def publish_existing(run: str, final_run: str = "") -> None:
+    import json
+
+    print(json.dumps(publish_run.remote(run, final_run), indent=2))

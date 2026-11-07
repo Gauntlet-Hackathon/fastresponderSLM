@@ -102,6 +102,7 @@ class Spec:
     prompt_injection: bool = False
     shared_duration: bool = False   # one stated duration covers every need
     device: str | None = None       # the powered device, for medical_device_no_power
+    vague: bool = False             # too vague to call: is_request is a soft 0.5, never scored
 
 
 # Powered medical devices (rubric: "a medical device that needs electricity").
@@ -158,6 +159,21 @@ def sample_focus_spec(seed: int) -> Spec:
         spec.needs = {r.choice(L.NEED_KINDS): r.choice([None, 24, 48])}
     spec.vulnerable = [v for v in L.VULNERABLE_KINDS if v in spec.vulnerable]
     spec.hazards = [h for h in L.HAZARD_KINDS if h in spec.hazards]
+    return spec
+
+
+def sample_vague_spec(seed: int) -> Spec:
+    """A message too vague to tell whether the sender needs help (rubric: the right answer is low
+    confidence, not a guess). It states no hazard, vulnerable person, need or count, so those heads
+    are cleanly labeled as absent; is_request gets a soft 0.5 target (records.soft_labels)."""
+    spec = sample_spec(seed)
+    spec.is_request, spec.non_request_type, spec.request_kind = True, None, "other"
+    spec.is_stale_post, spec.hazards, spec.vulnerable, spec.needs = False, [], [], {}
+    spec.vulnerable_indirect, spec.people_count, spec.prompt_injection = False, None, False
+    spec.contact = False
+    if spec.location_type == "coords":
+        spec.location_type, spec.location_hint = "none", None
+    spec.vague = True
     return spec
 
 
@@ -258,7 +274,13 @@ def build_prompt(spec: Spec) -> str:
     lang = {"en": "English", "es": "Spanish (as written by Spanish speakers in Houston)",
             "mixed": "a natural mix of English and Spanish (Spanglish)"}[spec.lang]
     lines = [f"Language: {lang}.", f"Writing style: {spec.style}."]
-    if not spec.is_request:
+    if spec.vague:
+        lines.append("Message type: something a person might post during the flood that is TOO "
+                     "VAGUE to tell whether they need help: a fragment, a bare place, a feeling, "
+                     "an unclear question or a half-finished thought. A careful reader should not "
+                     "be able to decide either way. Do not ask for help, do not offer help, do not "
+                     "say they are fine, and do not describe danger, injuries or missing supplies.")
+    elif not spec.is_request:
         kinds = {
             "news_report": "a news-style report or repost about the flooding, not asking for help",
             "offer_of_help": "an offer to help others (boats, trucks, supplies, shelter)",
@@ -470,6 +492,10 @@ def build_record(spec: Spec, gen: dict[str, Any], model: str) -> dict[str, Any]:
         "gold_extracted": gold,
         "meta": {"generator": model, "spec": asdict(spec)},
     }
+    if spec.vague:
+        del rec["labels"]["is_request"], rec["labels"]["request_kind"]
+        rec["soft_labels"] = {"is_request": 0.5}
+        gold["is_request"] = {"value": False, "confidence": 0.5}
     validate_record(rec)
     return rec
 
@@ -479,7 +505,7 @@ def disagreements(rec: dict[str, Any], v: dict[str, Any]) -> list[str]:
     lab = rec["labels"]
     out = []
     for head in ("is_request", "is_stale_post", "request_kind", "location_type"):
-        if lab[head] != v[head]:
+        if head in lab and lab[head] != v[head]:  # a vague row has no is_request / request_kind
             out.append(f"{head}: spec={lab[head]} verify={v[head]}")
     for head in ("hazards", "vulnerable", "needs"):
         want = {k for k, on in lab[head].items() if on}
@@ -514,9 +540,10 @@ def _call_json(client, model: str, system: str, user: str, schema: dict, name: s
 
 
 def generate_one(client, seed: int, gen_model: str, verify_model: str | None,
-                 focus: bool = False) -> dict[str, Any]:
+                 focus: bool = False, vague: bool = False) -> dict[str, Any]:
     """Returns {"record": ...} on success or {"seed", "error"} when the row is rejected."""
-    spec = sample_focus_spec(seed) if focus else sample_spec(seed)
+    spec = (sample_vague_spec(seed) if vague else sample_focus_spec(seed) if focus
+            else sample_spec(seed))
     try:
         gen = _call_json(client, gen_model, GEN_SYSTEM, build_prompt(spec), GEN_SCHEMA, "message")
         rec = build_record(spec, gen, gen_model)
@@ -556,6 +583,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--focus", action="store_true",
                     help="sample the under-covered categories (see the module docstring)")
+    ap.add_argument("--vague", action="store_true",
+                    help="messages too vague to call (soft is_request 0.5; see sample_vague_spec)")
     ap.add_argument("--verify-file", type=Path, default=None,
                     help="only check the records in this file with --verify-model")
     args = ap.parse_args(argv)
@@ -573,7 +602,7 @@ def main(argv: list[str] | None = None) -> int:
             seeds = range(args.seed, args.seed + args.n)
             results = list(pool.map(
                 lambda s: generate_one(client, s, args.gen_model, args.verify_model or None,
-                                       args.focus), seeds))
+                                       args.focus, args.vague), seeds))
     kept = [r["record"] for r in results if "record" in r]
     rejected = [r for r in results if "record" not in r]
     write_jsonl(args.out, kept)
