@@ -98,7 +98,8 @@ def to_record(row: dict[str, Any]) -> dict[str, Any]:
 _UNLABELLED = re.compile(
     r"(?:\b(?:since|for|been out)\s+)?\b\d+\s*(?:am|pm|hours?|hrs?|days?|months?|years?(?: old)?"
     r"|percent|kids?|adults?|people|toddlers?|of us)?\b"
-    r"|\b(?:this|last)\s+(?:morning|night|evening|afternoon)\b|\b(?:yesterday|tonight|today)\b", re.I)
+    r"|\b(?:this|last)\s+(?:morning|night|evening|afternoon)\b"
+    r"|\b(?:yesterday|tonight|today)\b", re.I)
 
 
 def _labelled_spans(text: str, gold: list[dict[str, Any]], location_type: str
