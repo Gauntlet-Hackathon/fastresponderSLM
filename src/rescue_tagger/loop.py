@@ -86,10 +86,11 @@ def field_n(report: dict[str, Any], metric: str) -> int | None:
 
 
 def noise(p: float, n: int | None) -> float:
-    """Two standard errors of a proportion-like metric p measured on n rows."""
+    """Two standard errors of a proportion-like metric p measured on n rows. p is smoothed
+    (Laplace) so a perfect 1.0 or 0.0 on a small slice still allows for one flipped row."""
     if not n:
         return 0.0
-    p = min(max(p, 0.0), 1.0)
+    p = (min(max(p, 0.0), 1.0) * n + 1) / (n + 2)
     return 2 * math.sqrt(p * (1 - p) / n)
 
 
