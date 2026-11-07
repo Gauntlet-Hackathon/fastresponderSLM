@@ -85,8 +85,8 @@ def next_action(queue: dict[str, Any], st: State, hhmm: str | None = None) -> di
             rejections = gap_streak = 0
             continue
         if item.get("purpose") in ("seed", "baseline"):
-            # Seed repeats are expected to tie, and a baseline on another backbone is a comparison,
-            # not a tuning step; neither counts toward the rejection or gap streaks.
+            # Seed repeats are expected to tie, and a baseline (another backbone or data version) is
+            # a comparison, not a tuning step; neither counts toward the rejection or gap streaks.
             continue
         rejections += 1
         gap_streak = gap_streak + 1 if any("gap widened" in r for r in d["reasons"]) else 0

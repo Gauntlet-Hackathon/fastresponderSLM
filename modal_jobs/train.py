@@ -118,6 +118,12 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str],
     for kv in overrides:
         k, v = parse_override(kv)
         cfg[k] = v
+    if reuse:
+        # Reused weights were trained on the source run's data, whatever the config says now.
+        src = Path(f"/runs/{reuse}/result.json")
+        if src.exists():
+            src_cfg = json.loads(src.read_text()).get("config", {})
+            cfg["data_version"] = src_cfg.get("data_version", cfg.get("data_version"))
     result = {"run": run_name, "config": cfg, "reused_weights_from": reuse or None,
               "eval": reports}
     history = Path(f"{out_dir}/history.json")
@@ -128,8 +134,14 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str],
     # and commit at once so the next run compares against this decision.
     runs.commit()
     runs.reload()
-    result["decision"] = compare(Path(f"{out_dir}/result.json"), Path("/runs/champion.json"),
-                                 Path("/runs"), promote=True)
+    if final:
+        # The morning read re-scores the champion's own weights: never a candidate. Promoting it
+        # would crown the same model under a new name (across data versions, as a new baseline).
+        result["decision"] = {"promote": False, "champion": None,
+                              "reasons": ["final read of the champion, not a candidate"]}
+    else:
+        result["decision"] = compare(Path(f"{out_dir}/result.json"),
+                                     Path("/runs/champion.json"), Path("/runs"), promote=True)
     Path(f"{out_dir}/decision.json").write_text(json.dumps(result["decision"], indent=2) + "\n")
     runs.commit()
     if publish:
