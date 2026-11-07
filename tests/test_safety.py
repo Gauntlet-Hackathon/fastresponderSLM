@@ -35,3 +35,18 @@ def test_near_miss_and_unsure_request_are_flagged():
 def test_confident_non_request_is_not_flagged_by_cue_words():
     assert review_flags("Shelter open for families with kids, water rising on I-10",
                         _pay(req=False, conf=0.95)) == []
+
+
+def test_short_vietnamese_cues_need_their_accents():
+    for text in ("no tenemos luz", "vivo con mi esposo", "better than nothing", "Tim is here",
+                 "my 5 year old daughter", "this fall", "he got fired"):
+        kinds = cue_kinds(text)
+        assert not kinds & {"fire", "medical", "injury", "disabled", "elderly"}, (text, kinds)
+    assert cue_kinds("vivo con mi esposo") == set()
+    assert "child" in cue_kinds("my 5 year old daughter")
+    assert "fire" in cue_kinds("nghe tiếng nổ")
+
+
+def test_decomposed_accents_are_normalised():
+    import unicodedata
+    assert "trapped" in cue_kinds(unicodedata.normalize("NFD", "chúng tôi bị mắc kẹt"))

@@ -23,6 +23,7 @@ so news and offers of help that mention water or roofs don't flood the review qu
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any
 
 ON = 0.5            # a kind counts as reported at this confidence (as in product_eval)
@@ -37,7 +38,7 @@ _EN_STUCK = (
     r"no way out", r"(?:boxed|cut|closed) (?:in|off)", r"pinned", r"locked in", r"blocked in",
     r"attic", r"crawl ?space", r"(?:car|truck|vehicle|suv|van) (?:is |got )?(?:stuck|stalled|"
     r"swept|floating|underwater|submerged)", r"underpass", r"(?:swept|washed) away",
-    r"surrounded by (?:water|flood)", r"water all around", r"island(?:ed)?\b",
+    r"surrounded by (?:water|flood)", r"water all around",
 )
 _ES_STUCK = (
     r"atrapad", r"atrapa", r"atorad", r"atascad", r"varad", r"encerrad", r"aislad",
@@ -69,7 +70,7 @@ _ES_WATER = (
 )
 _VI_WATER = (
     r"n[ưu][ớo]c (?:đ|d)?(?:ang )?(?:l[êe]n|d[âa]ng|v[àa]o|t[ớo]i|ng[ậa]p|cao|tr[àa]n|s[âa]u|"
-    r"ngang|qu[áa])", r"ng[ậa]p", r"l[ũu]\b", r"l[ũu] l[ụu]t", r"l[ụu]t", r"tr[àa]n v[àa]o",
+    r"ngang|qu[áa])", r"ng[ậa]p", r"lũ\b", r"l[ũu] l[ụu]t", r"l[ụu]t", r"tr[àa]n v[àa]o",
     r"đu[ốo]i n[ưu][ớo]c", r"chìm", r"g[áa]c x[ée]p",
 )
 CUES: dict[str, tuple[str, ...]] = {
@@ -82,26 +83,26 @@ CUES: dict[str, tuple[str, ...]] = {
         r"m[áa]i nh[àa]", r"n[óo]c nh[àa]", r"tr[êe]n m[áa]i", r"tr[êe]n n[óo]c", r"s[âa]n th[ượu]ng",
     ),
     "fire": (
-        r"fire", r"smoke", r"smoking\b", r"smell(?:s|ing)? (?:gas|smoke|burning)", r"gas leak",
+        r"fires?\b", r"smoke", r"smoking\b", r"smell(?:s|ing)? (?:gas|smoke|burning)", r"gas leak",
         r"burn(?:ing|t|ed)?\b", r"flames?", r"spark(?:s|ing)", r"electrical fire", r"explosion",
         r"exploded", r"on fire",
         r"fuego", r"humo", r"incendi", r"llamas", r"quem", r"huele a (?:gas|quemado|humo)",
         r"fuga de gas", r"chispas", r"explosi[óo]n", r"explot",
-        r"ch[áa]y\b", r"đ[áa]m ch[áa]y", r"kh[óo]i", r"l[ửu]a", r"r[òo] r[ỉi] gas", r"m[ùu]i gas",
-        r"m[ùu]i kh[ée]t", r"n[ổo]\b", r"ch[ậa]p đi[ệe]n",
+        r"cháy\b", r"đ[áa]m ch[áa]y", r"kh[óo]i", r"l[ửu]a", r"r[òo] r[ỉi] gas", r"m[ùu]i gas",
+        r"m[ùu]i kh[ée]t", r"nổ\b", r"ch[ậa]p đi[ệe]n",
     ),
     "injury": (
         r"hurt", r"injur", r"wound", r"broke(?:n)? (?:arm|leg|bone|hip|ankle|wrist|back|neck|rib)",
         r"broken", r"fractur", r"bleed", r"blood", r"cut (?:bad|badly|open|deep)", r"gash",
         r"unconscious", r"passed out", r"not breathing", r"can'?t breathe", r"hit (?:his|her|my|their) head",
         r"head injury", r"concuss", r"electrocut", r"shocked", r"burned (?:his|her|my|their)",
-        r"in pain", r"pain\b", r"fell\b", r"fall(?:en)?\b", r"bitten", r"snake ?bite",
+        r"in pain", r"pain\b", r"fell\b", r"fallen\b", r"bitten", r"snake ?bite",
         r"herid", r"lastimad", r"lesionad", r"sangr", r"(?:brazo|pierna|hueso|cadera|tobillo) rot",
         r"fractura", r"inconsciente", r"desmay", r"no respira", r"golpe en la cabeza", r"electrocut",
-        r"dolor", r"se cay[óo]", r"mordid",
-        r"b[ịi] th[ưu][ơo]ng", r"th[ưu][ơo]ng t[íi]ch", r"ch[ảa]y m[áa]u", r"g[ãa]y\b", r"b[ấa]t t[ỉi]nh",
+        r"mucho dolor", r"se cay[óo]", r"mordid",
+        r"b[ịi] th[ưu][ơo]ng", r"th[ưu][ơo]ng t[íi]ch", r"ch[ảa]y m[áa]u", r"gãy\b", r"b[ấa]t t[ỉi]nh",
         r"ng[ấa]t", r"kh[ôo]ng th[ởo] (?:đ|d)[ưu][ợo]c", r"b[ịi] (?:đ|d)i[ệe]n gi[ậa]t", r"b[ịi] ng[ãa]",
-        r"(?:đ|d)au", r"r[ắa]n c[ắa]n",
+        r"đau\b", r"r[ắa]n c[ắa]n",
     ),
     "medical_device_no_power": (
         r"oxygen", r"o2\b", r"ventilator", r"vent\b", r"respirator", r"dialysis", r"c-?pap",
@@ -119,13 +120,13 @@ CUES: dict[str, tuple[str, ...]] = {
         r"baby", r"babies", r"bby\b", r"infant", r"toddler", r"newborn", r"little (?:one|ones|boy|"
         r"girl)", r"boy\b", r"girl\b", r"grandkids?", r"grand(?:son|daughter|child)", r"nephew",
         r"niece", r"(?:[1-9]|1[0-7]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
-        r"[- ](?:yo|y/o|year[- ]old|month[- ]old|years? old|months? old)", r"\d+ ?(?:mo|month)s?\b",
+        r"[- ](?:yo|y/o|year[- ]old|month[- ]old|years? old|months? old)", r"\d+ ?(?:mo|month)s? old",
         r"ni[ñn][oa]s?", r"nin[oa]s?\b", r"hij[oa]s?", r"beb[ée]s?", r"bebito", r"bebita",
         r"chiquit", r"peque[ñn]", r"criatura", r"nieto", r"nieta", r"sobrin", r"mis chamacos",
         r"chamac", r"escuincl", r"menor(?:es)?\b",
         r"con trai", r"con g[áa]i", r"con t[ôo]i", r"con nh[ỏo]", r"em b[ée]", r"b[ée] (?:trai|g[áa]i)",
         r"tr[ẻe] (?:em|con|nh[ỏo]|s[ơo] sinh)", r"ch[áa]u (?:n[ộo]i|ngo[ạa]i|nh[ỏo])", r"đứa (?:b[ée]|nh[ỏo])",
-        r"(?:\d+|m[ộo]t|hai|ba) (?:đứa )?(?:con|ch[áa]u)\b", r"con\b",
+        r"(?:\d+|m[ộo]t|hai|ba) đứa (?:con|ch[áa]u)", r"(?:m[ộo]t|hai) (?:con|ch[áa]u)\b",
     ),
     "elderly": (
         r"elderly", r"eldery", r"old (?:man|men|woman|women|lady|ladies|people|peopel|ppl|couple|"
@@ -138,7 +139,7 @@ CUES: dict[str, tuple[str, ...]] = {
         r"abuel", r"ancian", r"viejit", r"viej[oa]s?\b", r"persona(?:s)? mayor", r"tercera edad",
         r"(?:se[ñn]or|se[ñn]ora) mayor", r"(?:[6-9]\d|1[01]\d) a[ñn]os", r"asilo", r"demencia",
         r"ng[ưu][ờo]i gi[àa]", r"ng[ưu][ờo]i l[ớo]n tu[ổo]i", r"cao tu[ổo]i", r"[ôo]ng b[àa]",
-        r"c[ụu]\b", r"c[ụu] gi[àa]", r"b[àa] n[ộo]i", r"b[àa] ngo[ạa]i", r"[ôo]ng n[ộo]i",
+        r"cụ\b", r"c[ụu] gi[àa]", r"b[àa] n[ộo]i", r"b[àa] ngo[ạa]i", r"[ôo]ng n[ộo]i",
         r"[ôo]ng ngo[ạa]i", r"b[àa] c[ụu]", r"[ôo]ng c[ụu]", r"(?:[6-9]\d|1[01]\d) tu[ổo]i",
         r"vi[ệe]n d[ưu][ỡo]ng l[ãa]o", r"b[ốo] m[ẹe] gi[àa]",
     ),
@@ -151,7 +152,7 @@ CUES: dict[str, tuple[str, ...]] = {
         r"no camina", r"en cama", r"encamad", r"paralizad", r"par[áa]lisis", r"ciego", r"ciega",
         r"sord[oa]", r"andadera", r"muletas", r"autis", r"necesidades especiales",
         r"xe l[ăa]n", r"khuy[ếe]t t[ậa]t", r"t[àa]n t[ậa]t", r"li[ệe]t\b", r"b[ạa]i li[ệe]t",
-        r"kh[ôo]ng (?:đ|d)i (?:đ|d)[ưu][ợo]c", r"n[ằa]m li[ệe]t", r"m[ùu]\b", r"(?:đ|d)i[ếe]c",
+        r"kh[ôo]ng (?:đ|d)i (?:đ|d)[ưu][ợo]c", r"n[ằa]m li[ệe]t", r"mù\b", r"(?:đ|d)i[ếe]c",
         r"t[ựu] k[ỷi]", r"(?:đ|d)[ộo]t qu[ỵy]",
     ),
     "medical": (
@@ -166,9 +167,9 @@ CUES: dict[str, tuple[str, ...]] = {
         r"operad[oa]", r"enferm", r"fiebre", r"infecci[óo]n", r"presi[óo]n alta", r"ri[ñn][óo]n",
         r"az[úu]car", r"paciente",
         r"ti[ểe]u (?:đ|d)[ưu][ờo]ng", r"(?:đ|d)[ưu][ờo]ng huy[ếe]t", r"thu[ốo]c\b", r"ung th[ưu]",
-        r"h[óo]a tr[ịi]", r"(?:đ|d)[ộo]ng kinh", r"co gi[ậa]t", r"tim\b", r"b[ệe]nh tim",
-        r"hen suy[ễe]n", r"huy[ếe]t [áa]p", r"m[ổo]\b", r"ph[ẫa]u thu[ậa]t", r"b[ệe]nh\b",
-        r"[ốo]m\b", r"s[ốo]t\b", r"th[ậa]n\b", r"b[ệe]nh nh[âa]n",
+        r"h[óo]a tr[ịi]", r"(?:đ|d)[ộo]ng kinh", r"co gi[ậa]t", r"b[ệe]nh tim",
+        r"hen suy[ễe]n", r"huy[ếe]t [áa]p", r"mổ\b", r"ph[ẫa]u thu[ậa]t", r"b[ệe]nh\b",
+        r"ốm\b", r"sốt\b", r"thận\b", r"b[ệe]nh nh[âa]n",
     ),
     "pregnant": (
         r"pregnant", r"preggo", r"pregant", r"expecting", r"in labor", r"labor pains",
@@ -176,7 +177,7 @@ CUES: dict[str, tuple[str, ...]] = {
         r"(?:[1-4]\d|[5-9]) (?:weeks|months) pregnant",
         r"embarazad", r"embarasad", r"encinta", r"de parto", r"contracciones", r"se le rompi[óo] la "
         r"fuente", r"rompi[óo] fuente", r"dar a luz", r"esperando (?:un )?beb[ée]",
-        r"mang thai", r"c[óo] b[ầa]u", r"c[óo] thai", r"b[ầa]u\b", r"chuy[ểe]n d[ạa]", r"s[ắa]p sinh",
+        r"mang thai", r"c[óo] b[ầa]u", r"c[óo] thai", r"bầu\b", r"chuy[ểe]n d[ạa]", r"s[ắa]p sinh",
         r"v[ỡo] [ốo]i", r"s[ắa]p (?:đ|d)[ẻe]", r"(?:đ|d)au (?:đ|d)[ẻe]",
     ),
 }
@@ -185,6 +186,7 @@ _RX = {k: re.compile(r"(?<!\w)(?:" + "|".join(v) + r")", re.IGNORECASE) for k, v
 
 def cue_kinds(text: str) -> set[str]:
     """Kinds whose cue words appear in the text."""
+    text = unicodedata.normalize("NFC", text)
     return {k for k, rx in _RX.items() if rx.search(text)}
 
 
@@ -197,6 +199,7 @@ def _conf(payload: dict[str, Any], kind: str) -> float:
 
 def review_flags(text: str, payload: dict[str, Any]) -> list[str]:
     """Reasons a person should review this message; [] when none."""
+    text = unicodedata.normalize("NFC", text)
     flags: list[str] = []
     req = payload["is_request"]
     c = float(req["confidence"])
