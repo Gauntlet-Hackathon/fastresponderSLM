@@ -27,7 +27,11 @@ MAX_ECE = 0.10        # absolute ceiling on any field's calibration error
 MAX_ECE_RISE = 0.02   # and no field may get worse than the current best by more than this
 # Small dev slices are noisy: one flipped row out of 72 moves accuracy 1.4 points. A drop or rise
 # counts only past two standard errors of the champion's own estimate on that many rows.
+# Only small slices get the allowance: real-text fields (thousands of rows) keep the fixed limits.
+SMALL_N = 300
 ECE_NOISE = 0.5       # ECE standard error is roughly ECE_NOISE / sqrt(n) for 10 bins
+MAX_ECE_TOL = 0.05    # the ECE-rise allowance never exceeds this
+MAX_DROP_TOL = 0.08   # nor the critical-drop allowance
 MAX_LATENCY_MS = 100.0
 GAP_TOLERANCE = 0.01
 # One bad seed can inflate the measured spread; cap the bar so the loop does not reject everything.
@@ -141,18 +145,27 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
     if gain < need:
         fails.append(f"real-text score {cand['real_score']} vs {champ['real_score']}: "
                      f"gain {gain:+.4f} is below {need:.4f}")
-    ns = champ.get("n") or {}
+    def rows(k: str) -> int | None:
+        """The larger of the two runs' row counts (the stricter allowance), and only for small
+        slices; None means "use the fixed limit"."""
+        vals = [x for x in ((champ.get("n") or {}).get(k), (cand.get("n") or {}).get(k)) if x]
+        n = max(vals) if vals else None
+        return n if n and n < SMALL_N else None
+
     for k, v in cand["ece"].items():
         b = champ.get("ece", {}).get(k)
-        n = ns.get(k) or (cand.get("n") or {}).get(k)
-        tol = max(MAX_ECE_RISE, 2 * ECE_NOISE / math.sqrt(n)) if n else MAX_ECE_RISE
+        n = rows(k)
+        tol = min(max(MAX_ECE_RISE, 2 * ECE_NOISE / math.sqrt(n)), MAX_ECE_TOL) if n \
+            else MAX_ECE_RISE
         if b is not None and v - b > tol:
             fails.append(f"{k} worsened {b} -> {v} (past noise {tol:.3f})")
     for k in CRITICAL:
         c, b = cand["critical"].get(k), champ["critical"].get(k)
         if c is None or b is None:
             continue
-        tol = max(MAX_DROP, noise(b, ns.get(k) or (cand.get("n") or {}).get(k)))
+        # F1 is treated like a proportion over rows; its true sample (positive items) is
+        # smaller, so this errs strict.
+        tol = min(max(MAX_DROP, noise(b, rows(k))), MAX_DROP_TOL)
         if b - c > tol:
             fails.append(f"{k} dropped {b:.4f} -> {c:.4f} (past noise {tol:.4f})")
     # The gap counts as widened only past noise, and only when real text did not improve.

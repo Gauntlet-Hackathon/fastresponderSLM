@@ -171,8 +171,9 @@ def test_large_slices_keep_the_strict_drop_limit():
 def test_ece_rise_on_72_rows_is_noise_but_large_rise_is_not():
     champ = summarize(_with_n(_result("c", real=0.80, ece=0.03), is_request=72))
     assert gates(summarize(_with_n(_result("a", real=0.83, ece=0.07), is_request=72)), champ)[0]
-    # rise 0.069 is under 2 * 0.5 / sqrt(72) = 0.118, and 0.099 is under the 0.10 ceiling
-    assert gates(summarize(_with_n(_result("b", real=0.83, ece=0.099), is_request=72)), champ)[0]
+    # the allowance is capped at 0.05: a rise of 0.069 on 72 rows is real
+    assert not gates(summarize(_with_n(_result("b", real=0.83, ece=0.099), is_request=72)),
+                     champ)[0]
     big = summarize(_with_n(_result("c2", real=0.80, ece=0.03), is_request=5000))
     assert not gates(summarize(_with_n(_result("d", real=0.83, ece=0.06), is_request=5000)),
                      big)[0]
@@ -185,3 +186,12 @@ def test_a_perfect_score_on_72_rows_still_allows_one_flipped_row():
                              location_type=72))
     ok, why = gates(cand, champ)
     assert ok, why
+
+
+def test_real_text_fields_keep_the_fixed_limit():
+    champ = summarize(_with_n(_result("c", real=0.80, crit={"needs_f1": 0.65}), needs=1233,
+                              is_request=1233))
+    cand = summarize(_with_n(_result("a", real=0.83, crit={"needs_f1": 0.635}), needs=1233,
+                             is_request=1233))
+    ok, why = gates(cand, champ)
+    assert not ok and any("needs_f1" in w for w in why)

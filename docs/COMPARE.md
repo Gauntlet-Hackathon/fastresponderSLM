@@ -60,6 +60,7 @@ in `src/rescue_tagger/llm_baseline.py`; `--show-prompts` prints them.
 pip install -e ".[llm]"
 python -m rescue_tagger.llm_baseline --condition structured   # also naive, multi; resumable
 python -m rescue_tagger.compare                                # Opus columns only, local
+# every condition must cover every row; --allow-partial scores missing rows as wrong
 ```
 
 Our column needs a checkpoint, so it runs on Modal: dispatch the `diagnose` workflow with the run
