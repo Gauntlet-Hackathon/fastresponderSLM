@@ -1,4 +1,4 @@
-"""Synthetic English / Spanish / mixed Houston rescue requests, generated label-first.
+"""Synthetic English / Spanish / mixed / Vietnamese Houston rescue requests, generated label-first.
 
 Why label-first: we sample the labels (a "spec") with a seeded RNG, then ask an LLM to write a
 message that expresses exactly that spec and to quote the exact substrings for each span. The
@@ -115,7 +115,11 @@ PAST_STORMS = ("Hurricane Ike in 2008", "Tropical Storm Allison in 2001",
                "Tropical Storm Imelda in 2019", "Hurricane Beryl in 2024", "Hurricane Rita in 2005",
                "the Memorial Day flood of 2015", "a past year such as 2016")
 FOCUS = ("medical_device", "shared_duration", "stale", "indirect_vulnerable")
-FOCUS_WEIGHTS = (35, 35, 15, 15)
+# v6 (b0008+): weights move toward the categories with the fewest training rows after v5; shared
+# durations were the best covered. Categories and weights only, never text from any eval set.
+FOCUS_WEIGHTS = (30, 15, 20, 35)
+# Vietnamese since v6: the product needs it to work as well as English, and no public source has it.
+SYNTH_LANG_WEIGHTS = (45, 25, 15, 15)
 
 
 def sample_focus_spec(seed: int) -> Spec:
@@ -180,7 +184,7 @@ def sample_vague_spec(seed: int) -> Spec:
 def sample_spec(seed: int) -> Spec:
     """Deterministic: the same seed always gives the same spec."""
     r = random.Random(seed)
-    lang = r.choices(L.SYNTH_LANGS, weights=(55, 30, 15))[0]
+    lang = r.choices(L.SYNTH_LANGS, weights=SYNTH_LANG_WEIGHTS)[0]
     style = r.choice(STYLES)
     roll = r.random()
     stale = False
@@ -272,7 +276,9 @@ SPAN_GUIDE = """Span definitions (quote exact substrings, or null when absent):
 
 def build_prompt(spec: Spec) -> str:
     lang = {"en": "English", "es": "Spanish (as written by Spanish speakers in Houston)",
-            "mixed": "a natural mix of English and Spanish (Spanglish)"}[spec.lang]
+            "mixed": "a natural mix of English and Spanish (Spanglish)",
+            "vi": "Vietnamese (as written by Vietnamese speakers in Houston; street and place "
+                  "names stay as they are written in English)"}[spec.lang]
     lines = [f"Language: {lang}.", f"Writing style: {spec.style}."]
     if spec.vague:
         lines.append("Message type: something a person might post during the flood that is TOO "
