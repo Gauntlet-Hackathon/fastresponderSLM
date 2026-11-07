@@ -34,7 +34,8 @@ image = (
     .env({"PYTHONPATH": f"{REMOTE_ROOT}/src", "TOKENIZERS_PARALLELISM": "false",
           "EVAL_REPO": "/tmp/eval_repo"})
     .add_local_dir(REPO_ROOT, REMOTE_ROOT, ignore=[".venv", ".git", "outputs", "data/raw",
-                                                     "data/processed", "**/__pycache__"])
+                                                     "data/processed", "**/__pycache__",
+                                                     "result.txt"])
 )
 runs = modal.Volume.from_name("rescue-tagger-runs", create_if_missing=True)
 app = modal.App("rescue-tagger", image=image)
