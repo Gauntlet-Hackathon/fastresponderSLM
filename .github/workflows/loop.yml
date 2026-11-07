@@ -32,6 +32,8 @@ concurrency:
 
 jobs:
   tick:
+    # A train run finishing on another branch says nothing about the loop.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

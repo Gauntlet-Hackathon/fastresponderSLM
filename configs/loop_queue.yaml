@@ -15,7 +15,7 @@ items:
   # Seed repeats measure run-to-run noise (never promoted), so later gains must beat it.
   - {name: laya-seed7, config: configs/train_laya.yaml, purpose: seed, overrides: {seed: 7}}
   - {name: laya-seed21, config: configs/train_laya.yaml, purpose: seed, overrides: {seed: 21}}
-  - {name: mmbert-s13, config: configs/train_mmbert_small.yaml}
+  - {name: mmbert-s13, config: configs/train_mmbert_small.yaml, purpose: baseline}
   # Training settings, one at a time (Laya is the primary model).
   - {name: laya-lr2e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 2.0e-5}}
   - {name: laya-lr5e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 5.0e-5}}

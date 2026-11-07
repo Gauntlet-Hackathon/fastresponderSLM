@@ -10,7 +10,7 @@ stop rule has hit. `final` scores the current best model on the test sets once (
 
 Stop rules (the loop then waits for a person):
   - max_runs trained runs reached (re-scoring an existing model does not count)
-  - `max_rejections` rejected runs in a row (seed repeats don't count: they're expected to tie)
+  - `max_rejections` rejected runs in a row (seed repeats and baselines don't count)
   - the synthetic-vs-real gap widened on 2 runs in a row
   - the same queue item failed twice
 """
@@ -84,8 +84,10 @@ def next_action(queue: dict[str, Any], st: State, hhmm: str | None = None) -> di
         if d["promote"]:
             rejections = gap_streak = 0
             continue
-        if item.get("purpose") == "seed":
-            continue  # seed repeats are expected to tie; they count toward neither streak
+        if item.get("purpose") in ("seed", "baseline"):
+            # Seed repeats are expected to tie, and a baseline on another backbone is a comparison,
+            # not a tuning step; neither counts toward the rejection or gap streaks.
+            continue
         rejections += 1
         gap_streak = gap_streak + 1 if any("gap widened" in r for r in d["reasons"]) else 0
         if gap_streak >= 2:

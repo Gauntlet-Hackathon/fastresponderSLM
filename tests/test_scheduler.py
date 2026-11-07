@@ -97,3 +97,10 @@ def test_no_launches_in_the_morning_window():
     assert next_action(q, st(), "11:00")["action"] == "wait"
     assert next_action(q, st(), "10:29")["action"] == "launch"
     assert next_action(q, st(), "14:30")["action"] == "launch"
+
+
+def test_backbone_baselines_do_not_count_as_rejections():
+    q = {**Q, "items": [dict(Q["items"][0]), {**Q["items"][2], "purpose": "baseline"},
+                        *Q["items"][3:]]}
+    act = next_action(q, st(decisions={"base": dec(True), "lr": dec(False), "drop": dec(False)}))
+    assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-ep"
