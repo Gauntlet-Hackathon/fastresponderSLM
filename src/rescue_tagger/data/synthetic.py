@@ -305,7 +305,7 @@ def build_prompt(spec: Spec) -> str:
                   "names stay as they are written in English)"}[spec.lang]
     lines = [f"Language: {lang}.", f"Writing style: {spec.style}."]
     if spec.hoax:
-        lines.append("Message type: something that reads like a rescue request but shows signs it "
+        lines.append("Message type: something that reads like a request for help but shows signs it "
                      "may be a prank or a joke (see the hoax sign in the writing style). Keep it "
                      "ambiguous: a careful dispatcher could not be sure whether it is real. Still "
                      "state every detail listed below exactly as given.")
