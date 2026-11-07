@@ -39,9 +39,11 @@ in `src/rescue_tagger/llm_baseline.py`; `--show-prompts` prints them.
   under-covered in the training data, generated from the rubric, never from edge text). Scores in
   those four now show whether targeted data worked, not generalization to unseen categories; the
   other eight categories still do.
-- Since data v4, a fifth category is targeted too: messages too vague to call (batch b0006,
-  generated from the rubric's "unsure" rule, never from edge text). Seven categories remain
-  untargeted, and only those measure generalization.
+- Once the vague batch lands (b0006, re-checked), a fifth category is targeted too: messages too
+  vague to call (generated from the rubric's "unsure" rule, never from edge text). Seven
+  categories then remain untargeted, and only those measure generalization.
+- Since data v4 we train on the product team's sets C and D (their train rows; dev rows pick
+  checkpoints). Those sets' held-back test split is the only fair product score; we never see it.
 
 - This is a report, never a selection signal. Nothing in it picks a run, a threshold or a prompt.
   Each scoring of our model on test and Harvey is logged to `/runs/eval_reads.jsonl`.

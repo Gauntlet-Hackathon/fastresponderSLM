@@ -96,6 +96,12 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str],
     score("dev_real", dev, "--half", "select", "--exclude-source", "synthetic")
     score("dev_synthetic", dev, "--half", "select", "--source", "synthetic")
     score("dev_rubric", dev, "--half", "select", "--exclude-source", "humaid")
+    if Path("data/product/rescue_eval_train_dev.jsonl").exists():
+        # Product team's dev rows (sets C and D), head by head: their requested report.
+        sh("python", "-m", "rescue_tagger.product_eval", "--model", best,
+           "--out", f"{out_dir}/eval_product_dev.json")
+        reports["product_dev"] = json.loads(
+            Path(f"{out_dir}/eval_product_dev.json").read_text())[best]
     if final:
         reads = Path("/runs/eval_reads.jsonl")
         for name, data, extra in (("test_real", "data/processed/test.jsonl",

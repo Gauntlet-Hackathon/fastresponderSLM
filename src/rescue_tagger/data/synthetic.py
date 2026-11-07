@@ -180,7 +180,7 @@ def sample_vague_spec(seed: int) -> Spec:
 def sample_spec(seed: int) -> Spec:
     """Deterministic: the same seed always gives the same spec."""
     r = random.Random(seed)
-    lang = r.choices(L.LANGS, weights=(55, 30, 15))[0]
+    lang = r.choices(L.SYNTH_LANGS, weights=(55, 30, 15))[0]
     style = r.choice(STYLES)
     roll = r.random()
     stale = False

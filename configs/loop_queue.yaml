@@ -30,8 +30,9 @@ items:
   - {name: laya-lr5e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 5.0e-5}}
   - {name: laya-dropout0.2, config: configs/train_laya.yaml, overrides: {dropout: 0.2}}
   - {name: laya-epochs6, config: configs/train_laya.yaml, overrides: {epochs: 6}}
-  # Data v4: Gemma batches b0005 (focus categories) and b0006 (vague messages, "unsure").
-  # Becomes the v4 baseline only if it holds the v3 real-text score; trained at the champion lr.
+  # Data v4: product sets C and D (train rows; dev rows pick checkpoints) and Gemma batch b0005.
+  # Real-text dev gains the product dev rows, so this is the new baseline; trained at the champion
+  # lr. Its product-dev report is compared with s13 and v3 in results/product_dev/.
   # Any seed repeat below that runs after this lands is a repeat of the v4 setting.
   - {name: laya-v4, config: configs/train_laya.yaml, purpose: baseline,
      overrides: {lr_encoder: 5.0e-5}}

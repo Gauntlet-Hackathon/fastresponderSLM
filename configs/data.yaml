@@ -21,6 +21,9 @@ sources:
     weight: 1.0
     batches: data/synthetic/batches/*.jsonl
     split_pct: {dev: 10, test: 5}
+  product:                   # product team's hand-written sets C and D, train/dev rows only
+    enabled: true            # (data/product/README.md); the held-back test rows are never here
+    path: data/product/rescue_eval_train_dev.jsonl
 
 # Training rows matching any of these texts (or any eval-only row) are dropped.
 # Point EVAL_REPO at a checkout of Gauntlet-Hackathon/gauntletvshackathon to protect its eval sets.

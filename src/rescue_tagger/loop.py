@@ -35,7 +35,7 @@ MAX_DROP_TOL = 0.08   # nor the critical-drop allowance
 MAX_LATENCY_MS = 100.0
 # Data versions whose real-text dev rows and labels are identical (v3 only added a synthetic batch),
 # so a run on the newer version must not lose real-text score to the older champion.
-REAL_DEV_SAME = {(2, 3), (3, 4), (2, 4)}
+REAL_DEV_SAME = {(2, 3)}  # v4 adds the product dev rows to real-text dev
 GAP_TOLERANCE = 0.01
 # One bad seed can inflate the measured spread; cap the bar so the loop does not reject everything.
 MAX_NEED = 0.02

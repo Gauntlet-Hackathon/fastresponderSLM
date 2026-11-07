@@ -77,9 +77,13 @@ generator's reading of its own text.
   set) exactly or near-verbatim (half its word 8-grams) is dropped. The first build dropped 301 rows.
 - The sealed holdout (set E) is never read by anything in this repo.
 
-## Data v4 (Gemma batches)
+## Data v4 (Gemma focus batch, product sets C and D)
 
-v4 adds two batches written by Gemma 4 31B (open weights, on Modal) and checked blind by Phi-4.
+v4 adds the product team's hand-written sets C and D (train and dev rows only; see
+`data/product/README.md`) and one Gemma batch. The 34 product dev rows join real-text dev, so v4
+runs are not compared with v3 runs: the first v4 run is the new baseline.
+
+v4's Gemma batch was written by Gemma 4 31B (open weights, on Modal) and checked blind by Phi-4.
 When Phi-4 disagrees on one or two fields, those fields are masked (dropped from the labels, so
 they train nothing) rather than the row being thrown out; a disputed `is_request` or three or
 more disputed fields rejects the row. Masking can lose labels but never adds a wrong one.
@@ -94,10 +98,8 @@ more disputed fields rejects the row. Masking can lose labels but never adds a w
 - **Vague messages:** short messages whose right answer is "unsure" (soft `is_request` 0.5).
   They carry no hard `is_request`, so a yes/no verifier could never reject one; their verifier
   instead answers needs_help / no_help / cannot_tell, and only cannot_tell keeps the row.
-  b0006 was generated before that rule, so its texts are re-checked under it before they land.
-
-Real-text dev is unchanged from v3, so v4 runs are judged against the v3 champion directly and
-must hold its real-text score and critical fields.
+  b0006 was generated before that rule, so its texts are re-checked under it and land in a later
+  data version (synthetic only, so real-text dev stays the same as v4).
 
 ## Known gaps
 

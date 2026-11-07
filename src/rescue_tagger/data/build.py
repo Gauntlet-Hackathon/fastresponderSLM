@@ -21,7 +21,7 @@ from typing import Any
 
 import yaml
 
-from rescue_tagger.data import humaid, munro
+from rescue_tagger.data import humaid, munro, product
 from rescue_tagger.data.leakcheck import LeakIndex
 from rescue_tagger.records import read_jsonl, validate_record, write_jsonl
 
@@ -104,6 +104,11 @@ def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
             for rec in read_jsonl(Path(p)):
                 rec["split"] = synthetic_split(rec["id"], split_cfg["dev"], split_cfg["test"])
                 rows.append(rec)
+    product_texts: set[str] = set()
+    if src_cfg.get("product", {}).get("enabled"):
+        recs = product.load(root / src_cfg["product"]["path"])
+        product_texts = {r["text"] for r in recs}
+        rows += recs
 
     for rec in rows:
         w = src_cfg[rec["source"]].get("weight", 1.0)
@@ -113,8 +118,11 @@ def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
 
     # Everything that is evaluation-only is protected, plus configured external eval files.
     eval_only = [r for r in rows if r["split"] == "test"]
+    # The product rows we were given (train/dev) also sit in the product's eval files; only their
+    # exact texts are exempt, so they are still checked against the held-back test rows.
     index = LeakIndex(
-        [r["text"] for r in eval_only] + protected_texts(cfg.get("protected_texts", [])),
+        [r["text"] for r in eval_only]
+        + [t for t in protected_texts(cfg.get("protected_texts", [])) if t not in product_texts],
         threshold=cfg.get("leak_threshold", 0.5),
     )
     dropped: list[str] = []

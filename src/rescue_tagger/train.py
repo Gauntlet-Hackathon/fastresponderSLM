@@ -140,8 +140,10 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     limit = cfg.get("limit_rows")
     train_rows = load_split(data_dir, "train", limit)
     # Checkpointing and early stopping use only the "calib" half of dev; the "select" half is
-    # kept untouched for ranking runs against each other.
-    dev_rows = [r for r in load_split(data_dir, "dev", limit) if dev_half(r["id"]) == "calib"]
+    # kept untouched for ranking runs against each other. The product team's dev rows (sets C
+    # and D) are given to us for picking checkpoints, so all of them join the checkpoint check.
+    dev_rows = [r for r in load_split(data_dir, "dev", limit)
+                if r["source"] == "product" or dev_half(r["id"]) == "calib"]
     enc = [encode(r, tok, model.cfg.max_length) for r in train_rows]
     random.Random(seed).shuffle(dev_rows)  # mix sources within dev batches
     dev_enc = [encode(r, tok, model.cfg.max_length) for r in dev_rows]
@@ -171,11 +173,16 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     # Dev checks: real text and synthetic are tracked apart, so a run that only learns the
     # generator's style shows up as a widening gap; the checkpoint is picked on all of dev.
     real_dev = [e for e, r in zip(dev_enc, dev_rows, strict=True) if r["source"] != "synthetic"]
+    product_dev = [e for e, r in zip(dev_enc, dev_rows, strict=True) if r["source"] == "product"]
     synth_dev = [e for e, r in zip(dev_enc, dev_rows, strict=True) if r["source"] == "synthetic"]
     subset_loaders = {
         name: DataLoader(sub, batch_size=cfg["batch_size"] * 2,
                          collate_fn=lambda x: collate(x, pad))
-        for name, sub in (("real", real_dev), ("synthetic", synth_dev)) if sub}
+        for name, sub in (("real", real_dev), ("synthetic", synth_dev), ("product", product_dev))
+        if sub}
+    # The product rows are ~0.3% of dev, so on their own they could never move the checkpoint;
+    # they get a fixed share of the checkpoint score instead (0 = plain macro dev loss).
+    product_w = cfg.get("checkpoint_product_weight", 0.0) if product_dev else 0.0
     eval_every = cfg.get("eval_every_steps") or steps_per_epoch
     patience = cfg.get("early_stop_patience", 2)  # dev checks without improvement before stopping
 
@@ -221,6 +228,9 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
                 entry[f"dev_loss_{name}"] = round(dev_loss(model, sub_loader, head_weights,
                                                            device)[0], 4)
             train_parts = {}
+            if product_w:
+                dl = (1 - product_w) * dl + product_w * entry["dev_loss_product"]
+                entry["checkpoint_score"] = round(dl, 4)
             if dl < best:
                 best, since_best = dl, 0
                 model.save(out_dir / "best", tok)

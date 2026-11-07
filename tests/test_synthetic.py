@@ -19,7 +19,7 @@ def test_spec_is_deterministic():
 
 def test_specs_cover_every_label():
     specs = [S.sample_spec(s) for s in range(3000)]
-    assert {s.lang for s in specs} == set(L.LANGS)
+    assert {s.lang for s in specs} == set(L.SYNTH_LANGS)
     assert {s.request_kind for s in specs} == set(L.REQUEST_KINDS)
     assert {s.location_type for s in specs} == set(L.LOCATION_TYPES)
     assert {h for s in specs for h in s.hazards} == set(L.HAZARD_KINDS)

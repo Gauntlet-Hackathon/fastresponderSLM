@@ -4,7 +4,7 @@ backbone_revision: abc32620dd4f6ab06f5fbe905dc25f310618e09f   # pinned
 data_dir: data/processed
 # Bump when training/dev labels change (configs/data.yaml): runs on different label versions are
 # never compared, grouped for seed noise, or promoted over each other.
-data_version: 4  # v4: + Gemma batches b0005 focus, b0006 vague (real-text dev unchanged)
+data_version: 4  # v4: + Gemma batch b0005, + product sets C/D (train rows; dev rows join real dev)
 out_dir: outputs/mmbert_small
 seed: 13
 max_length: 256
@@ -22,5 +22,6 @@ eval_every_steps: 750       # dev check twice per epoch
 early_stop_patience: 3      # stop after 3 dev checks with no new best
 # Share of each epoch drawn from each source. Synthetic is the only source with every field and
 # all of Spanish, so it gets the largest share despite being the smallest.
-source_share: {synthetic: 0.5, munro: 0.3, humaid: 0.2}
+source_share: {synthetic: 0.48, munro: 0.3, humaid: 0.2, product: 0.02}
+checkpoint_product_weight: 0.5   # product dev rows (sets C, D) get half the checkpoint score
 head_weights: {tokens: 1.0}
