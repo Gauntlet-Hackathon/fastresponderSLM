@@ -16,7 +16,7 @@ sources:
     # not-a-request; leave is_request unknown there instead of teaching "ask = not a request".
     unreliable_is_request:
       class_label: [sympathy_and_support, rescue_volunteering_or_donation_effort]
-  synthetic:                 # OpenAI-generated, label-first, blind-verified (EN / ES / mixed)
+  synthetic:                 # label-first, blind-verified (EN / ES / mixed): OpenAI to b0003, Gemma 4 + Phi-4 from b0005
     enabled: true
     weight: 1.0
     batches: data/synthetic/batches/*.jsonl

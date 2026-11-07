@@ -77,6 +77,24 @@ generator's reading of its own text.
   set) exactly or near-verbatim (half its word 8-grams) is dropped. The first build dropped 301 rows.
 - The sealed holdout (set E) is never read by anything in this repo.
 
+## Data v4 (Gemma batches)
+
+v4 adds two batches written by Gemma 4 31B (open weights, on Modal) and checked blind by Phi-4.
+When Phi-4 disagrees on one or two fields, those fields are masked (dropped from the labels, so
+they train nothing) rather than the row being thrown out; a disputed `is_request` or three or
+more disputed fields rejects the row. Masking can lose labels but never adds a wrong one.
+
+- **b0005-focus-gemma:** the four v3 focus categories. 322 of 600 kept (278 rejected, 75 of them
+  cut-off JSON). 274 kept rows have at least one masked field: hazards 101, request_kind 84,
+  location_type 80, needs 72, vulnerable 46, people_count 37. Caveat: Phi-4 often misses
+  "device without power" (more so in Spanish), so the device hazard is masked in 57 of 93
+  device rows. The batch still adds device text; the label is simply not taught on those rows.
+- **b0006-vague-gemma:** short, vague messages whose right answer is "unsure" (soft
+  `is_request` labels). Stats below once reviewed.
+
+Real-text dev is unchanged from v3, so v4 runs are judged against the v3 champion directly and
+must hold its real-text score and critical fields.
+
 ## Known gaps
 
 - Public data is English only. Spanish and mixed text come from synthetic data alone.
