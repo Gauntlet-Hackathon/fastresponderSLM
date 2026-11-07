@@ -1,0 +1,49 @@
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 736 column 3 (char 2298)", "seed": 320006}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 733 column 3 (char 2314)", "seed": 320010}
+{"error": "ValueError: LOCATION quote not found in text: 'Allen Parkway y la Memorial'", "seed": 320030}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 723 column 3 (char 2311)", "seed": 320033}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 734 column 1 (char 2296)", "seed": 320113}
+{"error": "ValueError: LOCATION quote not found in text: 'la 59 y West Gray'", "seed": 320167}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 727 column 1 (char 3746)", "seed": 320171}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 730 column 1 (char 2304)", "seed": 320185}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 730 column 1 (char 2287)", "seed": 320194}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 733 column 1 (char 2305)", "seed": 320200}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 706 column 1 (char 2447)", "seed": 320212}
+{"error": "ValueError: LOCATION quote not found in text: '123 Main Street'", "seed": 320225}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 733 column 1 (char 2314)", "seed": 320246}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 726 column 3 (char 2354)", "seed": 320251}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 734 column 3 (char 2297)", "seed": 320255}
+{"error": "ValueError: TIME quote not found in text: 'las 3 AM'", "seed": 320256}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 714 column 3 (char 2429)", "seed": 320269}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=none verify=landmark; vulnerable: spec=[] verify=['elderly']; people_count: spec=None verify=1", "seed": 320017, "text": "Still waiting here since this morning."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=none verify=landmark; people_count: spec=None verify=1", "seed": 320038, "text": "Todavía aquí desde ayer, just waiting."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=address; people_count: spec=None verify=1", "seed": 320039, "text": "Ay Dios mío, no puedo creer que esto esté pasando otra vez en Houston, yo me acuerdo que en mi pueblo siempre llovía pero no así, aquí estoy viendo el agua y pensando en la vida, justo acá por Kingwood Drive y Wedelbend Drive, qué cosas tiene la gente, yo no sé ni qué decir ya..."}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 493 column 3 (char 8148)", "seed": 320041}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 975 column 1 (char 4542)", "seed": 320060}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=address; people_count: spec=None verify=0", "seed": 320074, "text": "en Bunker Hill y Washington... k pasa aqui"}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=address verify=landmark; hazards: spec=[] verify=['rising_water']", "seed": 320081, "text": "Still thinking about 1412 Westheimer Rd."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=none; people_count: spec=None verify=0", "seed": 320088, "text": "Sigo pensando en mi tío, allá por el bayou."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=address; people_count: spec=None verify=0", "seed": 320095, "text": "Cerca del Addicks Reservoir..."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=address verify=landmark; people_count: spec=None verify=0", "seed": 320098, "text": "Aquí en 1200 Montrose Blvd."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=address; people_count: spec=None verify=0", "seed": 320114, "text": "Aquí cerca de la I-10 y Westheimer."}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 491 column 2 (char 4540)", "seed": 320119}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=address verify=landmark; people_count: spec=None verify=0", "seed": 320124, "text": "Sigo pensando en 1200 Main Street, qué pesar."}
+{"error": "verify: is_stale_post: spec=False verify=True; hazards: spec=[] verify=['rising_water']; vulnerable: spec=[] verify=['medical']; people_count: spec=None verify=0", "seed": 320130, "text": "1600 allen parkway hmmm"}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=none; people_count: spec=None verify=0", "seed": 320131, "text": "I just can't believe how the weather has turned out this year, it really reminds me of that one trip we took to Austin ages ago when it rained for a week straight and we spent the whole time eating at that one diner with the neon sign. Honestly just sitting here by the bayou thinking about it all."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=address verify=landmark; people_count: spec=None verify=0", "seed": 320135, "text": "Still here at 1234 Bunker Hill Road as of 3 PM."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=address verify=none; people_count: spec=None verify=0", "seed": 320136, "text": "Ay Dios mío, no puedo creer que ya sean las 4 de la tarde y sigo pensando en todo lo que pasó el año pasado con el clima aquí en Houston, qué locura, yo estoy ahorita en 9500 Hillcroft Avenue y pues no sé ni qué decir, solo mirando por la ventana..."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=none; hazards: spec=[] verify=['rising_water']; people_count: spec=None verify=0", "seed": 320151, "text": "aqi en main y washington"}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 875 column 1 (char 6327)", "seed": 320152}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=address verify=landmark; people_count: spec=None verify=1", "seed": 320159, "text": "Ay Dios mío, no puedo creer que estemos pasando por esto otra vez en Houston, me acuerdo que mi tía decía que el clima estaba loco pero esto ya es demasiado, estoy aquí en 14500 Cypress Creek Parkway y pues no sé ni qué decir, solo mirando por la ventana y pensando en la vida..."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=none; people_count: spec=None verify=0", "seed": 320161, "text": "near hermann park an hour ago"}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=none; people_count: spec=None verify=0", "seed": 320162, "text": "I can't believe the weather we are having in this city. I remember when the parks used to be so green and the humidity wasn't this bad in the summer. Just sitting here thinking about things near Beltway 8 and the Westpark Tollway. It is just so strange."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=none verify=landmark; people_count: spec=None verify=0", "seed": 320169, "text": "Just watching the rain."}
+{"error": "verify: is_stale_post: spec=False verify=True; vulnerable: spec=[] verify=['elderly']; people_count: spec=None verify=1", "seed": 320188, "text": "Sigo pensando en mi tío allá por Eastex Freeway y North Main desde ayer."}
+{"error": "verify: hazards: spec=[] verify=['rising_water']; vulnerable: spec=[] verify=['medical']; people_count: spec=None verify=0", "seed": 320189, "text": "aki xr el bayou"}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=none verify=landmark; people_count: spec=None verify=1", "seed": 320203, "text": "Caller called at 3 PM. Just checking in."}
+{"error": "JSONDecodeError: Expecting ',' delimiter: line 942 column 1 (char 13514)", "seed": 320240}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=address; people_count: spec=None verify=0", "seed": 320245, "text": "Cerca de Harrisburg y Polk hace una hora..."}
+{"error": "verify: location_type: spec=landmark verify=none; vulnerable: spec=[] verify=['elderly']; people_count: spec=None verify=1", "seed": 320252, "text": "Just thinking about my uncle over by Fondren and Bissonnet."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=none; people_count: spec=None verify=1", "seed": 320273, "text": "Ay dios mío, no puedo creer que ya sean las 4 de la tarde y sigo aquí pensando en todo lo que pasó el año pasado con la lluvia, me acuerdo que estaba viendo las noticias y el viento soplaba fuerte, aquí por White Oak Bayou y Northampton, qué cosa más rara es la vida a veces..."}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=landmark verify=none; people_count: spec=None verify=0", "seed": 320283, "text": "aqi x la I-45 y el loop 610 hace una hora"}
+{"error": "verify: is_stale_post: spec=False verify=True; location_type: spec=none verify=landmark; vulnerable: spec=[] verify=['elderly']; people_count: spec=None verify=1", "seed": 320289, "text": "My uncle has been staring at the rain for hours now."}
