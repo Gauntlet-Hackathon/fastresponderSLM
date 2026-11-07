@@ -185,8 +185,22 @@ def _dispatch(inputs: dict[str, str], ref: str) -> None:
     _gh("POST", f"/actions/workflows/{WORKFLOW}/dispatches", {"ref": ref, "inputs": inputs})
 
 
+def wait_for_run(run_id: str, timeout_s: int = 300, poll_s: int = 10) -> bool:
+    """A train run hands off to the loop from its own last step, so it is still in progress when
+    this tick starts; wait until GitHub reports it completed so it isn't counted as active."""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if _gh("GET", f"/actions/runs/{run_id}")["status"] == "completed":
+            return True
+        time.sleep(poll_s)
+    return False
+
+
 def tick(dry_run: bool = False) -> dict[str, Any]:
     queue = yaml.safe_load(QUEUE.read_text(encoding="utf-8"))
+    after = os.environ.get("AFTER_RUN", "").strip()
+    if after and not wait_for_run(after):
+        return {"action": "wait", "why": f"run {after} still not completed", "skipped": []}
     # GitHub first: a run seen as succeeded has already committed its decision before the
     # volume is read, so it can't look finished-without-a-decision by a timing accident.
     active, failures, succeeded = _github_runs()

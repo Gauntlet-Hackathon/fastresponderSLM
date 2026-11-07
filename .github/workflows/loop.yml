@@ -21,6 +21,10 @@ on:
       dry_run:
         type: boolean
         default: false
+      after_run:
+        description: "Workflow run id to wait for (set by train.yml when it hands off)"
+        required: false
+        default: ""
 
 permissions:
   actions: write
@@ -51,6 +55,7 @@ jobs:
           PYTHONPATH: src
           CMD: ${{ github.event.schedule == '7,37 12-14 * * *' && 'final' || inputs.cmd || 'tick' }}
           DRY_RUN: ${{ inputs.dry_run }}
+          AFTER_RUN: ${{ inputs.after_run }}
         shell: bash
         run: |
           set -eo pipefail
