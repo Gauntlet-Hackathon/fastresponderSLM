@@ -31,3 +31,12 @@ def test_refuses_to_print_eval_errors(tmp_path):
     f.write_text("")
     with pytest.raises(SystemExit):
         main([str(tmp_path), "--data", str(f), "--show-errors", "5"])
+
+
+def test_refuses_eval_rows_even_in_a_renamed_file(tmp_path):
+    import json
+
+    f = tmp_path / "copy.jsonl"
+    f.write_text(json.dumps({**_row(0, "x", True, "c"), "split": "test"}) + "\n")
+    with pytest.raises(SystemExit):
+        main([str(tmp_path), "--data", str(f), "--show-errors", "5"])

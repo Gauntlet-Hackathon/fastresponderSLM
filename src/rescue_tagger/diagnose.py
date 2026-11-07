@@ -106,6 +106,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.show_errors and any(s in args.data.name for s in EVAL_ONLY):
         raise SystemExit("--show-errors is for train/dev files only; eval text stays unread")
     rows = [r for r in read_jsonl(args.data) if args.source in (None, r["source"])]
+    if args.show_errors and any(r["split"] not in ("train", "dev")
+                                or r.get("meta", {}).get("harvey_holdout") for r in rows):
+        raise SystemExit("--show-errors found eval-only rows; eval text stays unread")
     report = diagnose(Extractor.load(args.model_dir), rows, args.show_errors)
     text = json.dumps(report, indent=2, ensure_ascii=False)
     print(text)

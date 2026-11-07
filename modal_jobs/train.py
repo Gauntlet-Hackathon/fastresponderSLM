@@ -1,6 +1,7 @@
 """Run the full training pipeline on a Modal GPU.
 
-  modal run modal_jobs/train.py --config configs/train_laya.yaml [--publish]
+  modal run modal_jobs/train.py::main --config configs/train_laya.yaml [--publish]
+  modal run modal_jobs/train.py::diag --run <run name>
 
 Launched by .github/workflows/train.yml (repo secrets MODAL_TOKEN_ID, MODAL_TOKEN_SECRET, HF_TOKEN).
 Steps inside the container: build data -> train -> calibrate on one half of dev -> score on the
