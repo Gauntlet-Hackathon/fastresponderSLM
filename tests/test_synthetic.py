@@ -229,3 +229,11 @@ def test_vague_rows_are_kept_only_when_the_verifier_cannot_tell():
         assert ("record" in S.apply_verdict(rec, v, "microsoft/phi-4")) is kept
     rec = S.build_record(spec, gen, "google/gemma-4-31B-it")
     assert "error" in S.apply_verdict(rec, _agreeing_verdict(rec), "microsoft/phi-4")
+
+
+def test_hoax_spec_is_a_request_with_soft_label():
+    from rescue_tagger.data.synthetic import build_prompt, sample_hoax_spec
+
+    sp = sample_hoax_spec(400000)
+    assert sp.hoax and sp.is_request and not sp.vague and "hoax sign" in sp.style
+    assert "prank" in build_prompt(sp)
