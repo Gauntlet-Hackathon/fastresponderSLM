@@ -24,6 +24,12 @@ def model_card(model_dir: Path, eval_reports: dict[str, Any] | None) -> str:
     return f"""---
 license: cc-by-nc-sa-4.0
 language: [en, es]
+extra_gated_prompt: >-
+  This model is for non-commercial research use only (CC BY-NC-SA 4.0, inherited from its HumAID
+  training data). By requesting access you agree to use it only for non-commercial research and
+  to share any derivative under the same license.
+extra_gated_fields:
+  I will use this model only for non-commercial research: checkbox
 tags: [token-classification, text-classification, disaster-response, calibrated]
 base_model: {cfg["backbone"]}
 ---
@@ -36,9 +42,35 @@ priority; a deterministic rules engine does. Runs offline on CPU; outputs are de
 
 - Backbone: `{cfg["backbone"]}` + BIO span tagger + one head per field.
 - Calibration: per-head temperature scaling on the dev split: `{json.dumps(temps)}`.
-- Training data: Munro disaster messages (CC BY 4.0), HumAID (CC BY-NC-SA 4.0, Harvey held out),
-  and OpenAI-generated synthetic requests. The license follows HumAID's share-alike terms.
 - Code: https://github.com/Gauntlet-Hackathon/fastresponderSLM
+
+## License and intended use
+**CC BY-NC-SA 4.0: non-commercial, research use only.** The license is inherited from HumAID,
+which is part of the training data. Access is gated: accept the terms on this page to download.
+Derivatives must be shared under the same license.
+
+## Training data
+- **HumAID** (CC BY-NC-SA 4.0): crowd-labeled disaster tweets, 2016-2019. Hurricane Harvey
+  tweets are held out of training and used only for evaluation. Some classes are relabeled or
+  masked for `is_request`; see `docs/DATA.md` in the code repository.
+- **Munro disaster response messages** (CC BY 4.0): human-labeled messages from Haiti 2010,
+  Pakistan 2010, Superstorm Sandy 2012 and news, via https://github.com/rmunro/disaster_response_messages.
+- **Synthetic requests**: English, Spanish and mixed messages generated label-first with an OpenAI
+  model and blind-verified.
+- **Backbone**: `{cfg["backbone"]}`, under its own license (see its model card).
+
+## Citation
+If you use this model, please cite HumAID:
+
+```bibtex
+@inproceedings{{alam2021humaid,
+  title     = {{HumAID: Human-Annotated Disaster Incidents Data from Twitter with Deep Learning
+               Benchmarks}},
+  author    = {{Alam, Firoj and Qazi, Umair and Imran, Muhammad and Ofli, Ferda}},
+  booktitle = {{Proceedings of the International AAAI Conference on Web and Social Media (ICWSM)}},
+  year      = {{2021}}
+}}
+```
 
 ```python
 from rescue_tagger.infer import Extractor
@@ -59,6 +91,8 @@ def publish(model_dir: Path, repo: str = DEFAULT_REPO, run_name: str = "",
 
     api = HfApi(token=os.environ["HF_TOKEN"])
     api.create_repo(repo, repo_type="model", exist_ok=True, private=False)
+    # Non-commercial research only: downloads require accepting the card's terms while logged in.
+    api.update_repo_settings(repo, gated="auto")
     (model_dir / "README.md").write_text(model_card(model_dir, eval_reports))
     info = api.upload_folder(repo_id=repo, folder_path=str(model_dir),
                              commit_message=f"Upload {run_name or model_dir.name}")
