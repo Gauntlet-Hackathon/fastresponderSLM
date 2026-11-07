@@ -239,17 +239,20 @@ def _items(raw: Any, kinds: tuple[str, ...]) -> list[dict[str, Any]]:
 
 
 def _needs(raw: Any) -> list[dict[str, Any]]:
-    out: dict[str, float | None] = {}
     """Accepts [{"kind"|"type"|"item"|"need": ..., "hours_without": h}], ["water"],
-    {"water": 48}, {"water": true} or {"water": {"hours_without": 48}}."""
+    {"water": 48}, {"water": true} or {"water": {"needed": true, "hours_without": 48}}."""
+    out: dict[str, float | None] = {}
     if isinstance(raw, dict):
         raw = [{"kind": k, "hours_without": v.get("hours_without") if isinstance(v, dict) else v}
-               for k, v in raw.items() if v is not False and v is not None]
+               for k, v in raw.items() if v is not False and v is not None
+               and not (isinstance(v, dict) and v.get("needed") is False)]
     if not isinstance(raw, list):
         raw = []
     for it in raw:
         if isinstance(it, dict):
-            kind = next((it[k] for k in ("kind", "type", "item", "need") if k in it), None)
+            if it.get("needed") is False:
+                continue
+            kind = next((it[k] for k in ("kind", "type", "item", "need") if it.get(k)), None)
             h = it.get("hours_without")
         else:
             kind, h = it, None
@@ -451,6 +454,12 @@ def read_results(path: Path) -> dict[str, dict[str, Any]]:
     return {r["id"]: r for r in read_jsonl(path)}
 
 
+def args_multi_incomplete(ans: dict[str, Any], row: dict[str, Any]) -> bool:
+    """A multi-prompt request needs all three steps."""
+    return row.get("condition") == "multi" and bool(ans.get("is_request")) \
+        and len(row["raw_output"]) < 3
+
+
 def reconvert(path: Path) -> int:
     """Re-parse stored raw outputs after a converter fix, so a parsing bug of ours is never
     charged to the model. Chains merge their steps in order, as run_one does."""
@@ -458,15 +467,21 @@ def reconvert(path: Path) -> int:
     rows = list(read_results(path).values())
     changed = 0
     for row in rows:
-        if not row.get("raw_output"):
+        # Only rows that ran to the end: a transport error or refusal mid-chain stays as it is
+        # (retried or scored as a miss), never turned into a partial answer.
+        if not row.get("raw_output") or not (row["valid"] or str(row["error"]).startswith(
+                ("ValueError", "JSONDecodeError"))):
             continue
+        text = text_of[row["id"]]  # a sample/result mismatch should crash, not score
         try:
             ans: dict[str, Any] = {}
             for raw in row["raw_output"]:
                 ans.update(parse_json(raw))
-            new = to_payload(ans, text_of[row["id"]])
+            if args_multi_incomplete(ans, row):
+                raise ValueError("chain stopped before its last step")
+            new = to_payload(ans, text)
             row.update(valid=True, error=None)
-        except (ValueError, KeyError) as e:
+        except (ValueError, TypeError) as e:
             new = None
             row.update(valid=False, error=f"{type(e).__name__}: {e}"[:300])
         changed += new != row.get("extracted")
