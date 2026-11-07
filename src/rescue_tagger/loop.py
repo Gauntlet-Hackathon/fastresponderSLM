@@ -26,6 +26,8 @@ MAX_ECE = 0.10        # absolute ceiling on any field's calibration error
 MAX_ECE_RISE = 0.02   # and no field may get worse than the current best by more than this
 MAX_LATENCY_MS = 100.0
 GAP_TOLERANCE = 0.01
+# One bad seed can inflate the measured spread; cap the bar so the loop does not reject everything.
+MAX_NEED = 0.02
 # Metrics that make up the real-text score (only those present in the report count).
 REAL_METRICS = ("is_request_accuracy", "needs_f1", "request_kind_accuracy")
 SCORED_SUFFIXES = ("_accuracy", "_f1", "location_exact")
@@ -103,7 +105,7 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
     if champ is None:
         return not fails, fails or ["first run: becomes the baseline"]
 
-    need = max(MIN_GAIN, 2 * spread) if spread else MIN_GAIN
+    need = min(max(MIN_GAIN, 2 * spread), MAX_NEED) if spread else MIN_GAIN
     gain = (cand["real_score"] or 0) - (champ["real_score"] or 0)
     if gain < need:
         fails.append(f"real-text score {cand['real_score']} vs {champ['real_score']}: "

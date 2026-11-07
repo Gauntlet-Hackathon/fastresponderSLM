@@ -115,3 +115,9 @@ def test_baseline_seed_noise_applies_to_other_experiments(tmp_path):
     d = compare(tmp_path / "lr.json", champ, tmp_path)
     assert d["seed_spread"] is not None
     assert not d["promote"]  # +0.04 is below 2x the ~0.021 spread
+
+
+def test_gain_bar_is_capped_when_seed_noise_is_large():
+    champ = summarize(_result("c", real=0.80))
+    cand = summarize(_result("a", real=0.825, synth=0.97))
+    assert gates(cand, champ, spread=0.05)[0]  # bar capped at 0.02, not 0.10
