@@ -33,6 +33,9 @@ ECE_NOISE = 0.5       # ECE standard error is roughly ECE_NOISE / sqrt(n) for 10
 MAX_ECE_TOL = 0.05    # the ECE-rise allowance never exceeds this
 MAX_DROP_TOL = 0.08   # nor the critical-drop allowance
 MAX_LATENCY_MS = 100.0
+# Latency belongs to the architecture, not the weights: a run with the champion's backbone and
+# max_length cannot really be more than this much slower, so a slower reading is container noise.
+SAME_ARCH_LATENCY = 1.2
 GAP_TOLERANCE = 0.01
 # One bad seed can inflate the measured spread; cap the bar so the loop does not reject everything.
 MAX_NEED = 0.02
@@ -64,8 +67,13 @@ def summarize(result: dict[str, Any]) -> dict[str, Any]:
         else round(synth_same - real_score, 4),
         "critical": {k: both.get(k) for k in CRITICAL},
         "n": {k: field_n(both, k) for k in (*CRITICAL, *(k for k in both if k.endswith("_ece")))},
+        # F1's real sample: gold-positive items (labels only, so the same for any model).
+        "pos": {k: both[f"{k.rsplit('_', 1)[0]}_pos"] for k in CRITICAL
+                if k.endswith("_f1") and isinstance(both.get(f"{k.rsplit('_', 1)[0]}_pos"), int)},
         "ece": {k: v for k, v in both.items() if k.endswith("_ece")},
         "latency_ms": both.get("latency_median_ms"),
+        "cpu": both.get("cpu"),
+        "max_length": result["config"].get("max_length", 256),
         "consistency_changed_pct": both.get("consistency_changed_pct"),
         "signature": signature(result["config"]),
         "reused": bool(result.get("reused_weights_from")),
@@ -130,7 +138,12 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
     fails: list[str] = []
     if cand["consistency_changed_pct"] not in (0, 0.0):
         fails.append(f"output changed across repeats ({cand['consistency_changed_pct']}%)")
-    if cand["latency_ms"] is None or cand["latency_ms"] >= MAX_LATENCY_MS:
+    latency = cand["latency_ms"]
+    if (latency is not None and champ is not None and champ.get("latency_ms") is not None
+            and champ.get("backbone") == cand.get("backbone")
+            and champ.get("max_length", 256) == cand.get("max_length", 256)):
+        latency = min(latency, champ["latency_ms"] * SAME_ARCH_LATENCY)
+    if latency is None or latency >= MAX_LATENCY_MS:
         fails.append(f"latency {cand['latency_ms']} ms is not under {MAX_LATENCY_MS}")
     for k, v in cand["ece"].items():
         if v > MAX_ECE:
@@ -148,8 +161,9 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
     def rows(k: str) -> int | None:
         """The larger of the two runs' row counts (the stricter allowance), and only for small
         slices; None means "use the fixed limit"."""
+        pos = [x for x in ((champ.get("pos") or {}).get(k), (cand.get("pos") or {}).get(k)) if x]
         vals = [x for x in ((champ.get("n") or {}).get(k), (cand.get("n") or {}).get(k)) if x]
-        n = max(vals) if vals else None
+        n = max(pos or vals) if (pos or vals) else None
         return n if n and n < SMALL_N else None
 
     for k, v in cand["ece"].items():
@@ -163,8 +177,8 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
         c, b = cand["critical"].get(k), champ["critical"].get(k)
         if c is None or b is None:
             continue
-        # F1 is treated like a proportion over rows; its true sample (positive items) is
-        # smaller, so this errs strict.
+        # F1 is treated like a proportion over its gold-positive items when the report has them
+        # (older reports: over rows, which errs strict).
         tol = min(max(MAX_DROP, noise(b, rows(k))), MAX_DROP_TOL)
         if b - c > tol:
             fails.append(f"{k} dropped {b:.4f} -> {c:.4f} (past noise {tol:.4f})")

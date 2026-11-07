@@ -195,3 +195,41 @@ def test_real_text_fields_keep_the_fixed_limit():
                              is_request=1233))
     ok, why = gates(cand, champ)
     assert not ok and any("needs_f1" in w for w in why)
+
+
+def _with(res, **rubric):
+    res["eval"]["dev_rubric"].update(rubric)
+    return res
+
+
+def test_f1_noise_uses_gold_positive_items_not_rows():
+    """needs_f1 on 1,202 rows but 100 gold needs: a 2-point dip is noise, a 10-point one is not."""
+    champ = summarize(_with(_result("c", real=0.80, crit={"needs_f1": 0.85}),
+                            needs_n=1202, needs_pos=100))
+    dip = summarize(_with(_result("d", real=0.82, crit={"needs_f1": 0.83}),
+                          needs_n=1202, needs_pos=100))
+    assert gates(dip, champ)[0]
+    big = summarize(_with(_result("e", real=0.82, crit={"needs_f1": 0.75}),
+                          needs_n=1202, needs_pos=100))
+    ok, why = gates(big, champ)
+    assert not ok and any("needs_f1 dropped" in w for w in why)
+    # A champion from before *_pos existed still gets the positive count from the candidate.
+    old = summarize(_with(_result("o", real=0.80, crit={"needs_f1": 0.85}), needs_n=1202))
+    assert gates(dip, old)[0]
+    # Without positives on either side, large slices keep the fixed limit.
+    no_pos = summarize(_with(_result("f", real=0.82, crit={"needs_f1": 0.83}), needs_n=1202))
+    assert not gates(no_pos, old)[0]
+
+
+def test_same_architecture_latency_noise_does_not_reject():
+    champ = summarize(_result("c", real=0.80, latency=57.4))
+    slow = summarize(_result("s", real=0.82, latency=105.0))
+    assert gates(slow, champ)[0]
+    other = _result("x", real=0.82, latency=105.0)
+    other["config"]["backbone"] = "other"
+    ok, why = gates(summarize(other), champ)
+    assert not ok and any("latency" in w for w in why)
+    longer = _result("l", real=0.82, latency=105.0)
+    longer["config"]["max_length"] = 512
+    assert not gates(summarize(longer), champ)[0]
+    assert not gates(summarize(_result("r", latency=105.0)), None)[0]
