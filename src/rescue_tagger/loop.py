@@ -35,8 +35,9 @@ MAX_DROP_TOL = 0.08   # nor the critical-drop allowance
 MAX_LATENCY_MS = 100.0
 # Data versions whose real-text dev rows and labels are identical (v3 only added a synthetic batch),
 # so a run on the newer version must not lose real-text score to the older champion.
-REAL_DEV_SAME = {(a, b) for a in range(2, 10) for b in range(a + 1, 10)}  # v4: product dev rows
-# are kept out of dev_real; v5-v9 add synthetic rows only
+REAL_DEV_SAME = {(a, b) for a in range(2, 11) for b in range(a + 1, 11)}  # v4: product dev rows
+# are kept out of dev_real; v5-v9 add synthetic rows only and
+# v10 relabels train rows only (dev untouched)
 GAP_TOLERANCE = 0.01
 # One bad seed can inflate the measured spread; cap the bar so the loop does not reject everything.
 MAX_NEED = 0.02

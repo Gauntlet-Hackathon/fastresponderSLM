@@ -70,6 +70,13 @@ items:
      overrides: {lr_encoder: 5.0e-5, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
   - {name: laya-v9-seed7, config: configs/train_laya.yaml, purpose: seed,
      overrides: {lr_encoder: 5.0e-5, seed: 7, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
+  # Data v10: + Opus rubric labels for 2,500 real Munro/HumAID TRAIN tweets (source distill, 13%
+  # of each epoch), replacing their original rows. Same loss weighting as v9, plus a seed repeat.
+  # (Paawan 20:47: remaining lr/epoch/mmBERT items dropped to finish sooner.)
+  - {name: laya-v10, config: configs/train_laya.yaml, purpose: baseline,
+     overrides: {lr_encoder: 5.0e-5, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
+  - {name: laya-v10-seed7, config: configs/train_laya.yaml, purpose: seed,
+     overrides: {lr_encoder: 5.0e-5, seed: 7, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
   # lr 5e-5 won by more than the seed spread measured at 3e-5, on one seed: repeat it at the new
   # setting before trusting it, then bracket it.
   - {name: laya-lr5e-5-seed7, config: configs/train_laya.yaml, purpose: seed,
@@ -77,8 +84,3 @@ items:
   - {name: laya-lr5e-5-seed21, config: configs/train_laya.yaml, purpose: seed,
      overrides: {lr_encoder: 5.0e-5, seed: 21}}
   - {name: laya-lr4e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 4.0e-5}}
-  - {name: laya-lr7e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 7.0e-5}}
-  - {name: laya-v4-epochs6, config: configs/train_laya.yaml,
-     overrides: {lr_encoder: 5.0e-5, epochs: 6}}
-  - {name: mmbert-seed7, config: configs/train_mmbert_small.yaml, purpose: seed,
-     overrides: {seed: 7}}
