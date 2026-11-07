@@ -1,0 +1,24 @@
+# Data build config: python -m rescue_tagger.data.build --config configs/data.yaml
+raw_dir: data/raw            # downloads (gitignored)
+out_dir: data/processed      # built files (gitignored, reproducible)
+
+sources:
+  munro:                     # CC BY 4.0, human-labeled, ~24k messages
+    enabled: true
+    weight: 1.0
+  humaid:                    # CC BY-NC-SA 4.0, crowd-labeled tweets; weak fit for is_request
+    enabled: true
+    weight: 0.5
+  synthetic:                 # OpenAI-generated, label-first, blind-verified (EN / ES / mixed)
+    enabled: true
+    weight: 1.0
+    batches: data/synthetic/batches/*.jsonl
+    split_pct: {dev: 10, test: 5}
+
+# Training rows matching any of these texts (or any eval-only row) are dropped.
+# Point EVAL_REPO at a checkout of Gauntlet-Hackathon/gauntletvshackathon to protect its eval sets.
+protected_texts:
+  - tests/fixtures/contract_cases.jsonl
+  - $EVAL_REPO/evals/sets/*.jsonl
+  - $EVAL_REPO/evals/drafts/*.jsonl
+leak_threshold: 0.5

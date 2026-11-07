@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install
+        run: |
+          uv venv -p 3.12
+          uv pip install -e ".[data]" pytest ruff
+      - name: Lint
+        run: uv run --no-sync ruff check .
+      - name: Test
+        run: uv run --no-sync pytest -q
