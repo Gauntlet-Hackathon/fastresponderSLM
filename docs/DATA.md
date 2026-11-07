@@ -129,6 +129,18 @@ more disputed fields rejects the row. Masking can lose labels but never adds a w
   written. 90 of 400 kept: the blind verifier read 245 as real pleas (rejected) and 42 failed to
   parse. 47 English, 19 Spanish, 13 Vietnamese, 11 mixed.
 
+## Data v8 (code-switching, old posts, third-party asks)
+
+- **b0010-mix-gemma** (`--mix`, seeds 350000+): requests built around one of three categories
+  Paawan asked for: code-switching (35%), old posts from a named past storm (30%) and asks made
+  for someone who is not with the writer (35%); 30% of the other two are code-switched too.
+  363 of 600 kept (163 rejected by the blind verifier, 74 parse errors). 169 mixed
+  English/Spanish, 105 Vietnamese, 56 English, 33 Spanish; 58 old posts, 132 third-party asks.
+- A Vietnamese row that switches into English is labeled `lang: vi` (the language it is mostly
+  written in); English/Spanish mixing is `mixed`, as before.
+- Third-party asks keep the request kind they were written for (rescue, evacuation, welfare
+  check, supply); where the verifier read it differently the field is masked.
+
 ## Known gaps
 
 - Public data is English only. Spanish and mixed text come from synthetic data alone.

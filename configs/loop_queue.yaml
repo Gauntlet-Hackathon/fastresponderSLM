@@ -3,7 +3,7 @@
 # warmup, source shares (synthetic at most 0.5), category sampling via new synthetic batches.
 # Never: choosing by test score, training on eval misses, continuing from earlier weights.
 night: "2026-11-07b"         # restarted after the request-label fix (docs/DATA.md)
-max_runs: 19         # trained runs; re-scoring an existing model does not count
+max_runs: 22         # trained runs; re-scoring an existing model does not count
 max_rejections: 4    # rejected runs in a row before stopping (seed repeats excluded); 4 so a
                      # rejected dropout0.2 + epochs6 + lr4e-5 still lets lr7e-5 run
 max_parallel: 1      # one at a time, so each run is judged against the true current best
@@ -51,6 +51,17 @@ items:
   # are pranks, and v5 took 2 set D pranks as confident requests. Synthetic only.
   - {name: laya-v7, config: configs/train_laya.yaml, purpose: baseline,
      overrides: {lr_encoder: 5.0e-5}}
+  # Data v8: + b0010, 363 rows of code-switching (English/Spanish, Vietnamese/English), old posts
+  # and requests made for someone else. Synthetic only. A seed repeat runs beside it (noise, and a
+  # second set of weights to average later), then the same data with a smaller synthetic share:
+  # dev real-text needs F1 slipped on v6 (0.866 -> 0.839) as the synthetic pool grew.
+  - {name: laya-v8, config: configs/train_laya.yaml, purpose: baseline,
+     overrides: {lr_encoder: 5.0e-5}}
+  - {name: laya-v8-seed7, config: configs/train_laya.yaml, purpose: seed,
+     overrides: {lr_encoder: 5.0e-5, seed: 7}}
+  - {name: laya-v8-syn35, config: configs/train_laya.yaml,
+     overrides: {lr_encoder: 5.0e-5,
+                 source_share: {synthetic: 0.35, munro: 0.38, humaid: 0.25, product: 0.02}}}
   # lr 5e-5 won by more than the seed spread measured at 3e-5, on one seed: repeat it at the new
   # setting before trusting it, then bracket it.
   - {name: laya-lr5e-5-seed7, config: configs/train_laya.yaml, purpose: seed,
