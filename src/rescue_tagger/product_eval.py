@@ -115,30 +115,23 @@ def load_model(spec: str):
     return Extractor.load(spec, model_version=spec)
 
 
-def stored_extract(path: Path) -> Callable[[str], dict[str, Any]]:
+def stored_extract(path: Path, rows: list[dict[str, Any]]) -> Callable[[str], dict[str, Any]]:
     """Stored LLM outputs (results/llm/<condition>.jsonl) as an extractor. A missing or failed
-    output is scored as a confident wrong answer, never as "unsure" or "not a request"."""
-    from rescue_tagger.records import read_jsonl as _read
+    output scores as compare.wrong_payload: wrong on every labelled field, and confident. Every
+    row must be covered, so a run on the wrong split fails instead of scoring fallbacks."""
+    from rescue_tagger.compare import wrong_payload
 
+    stored = {r["id"]: r for r in read_jsonl(path) if r.get("set") == "product"}
     by_text: dict[str, dict[str, Any]] = {}
-    for r in _read(path):
-        if r.get("set") == "product":
-            by_text[r["id"]] = r
-
-    def extract(text: str) -> dict[str, Any]:
-        row = by_text.get(_ids[text])
-        if row and row.get("valid") and row.get("extracted"):
-            return row["extracted"]
-        return {"location": {"text": "?", "type": "address", "confidence": 0.99},
-                "people_count": {"value": 99, "confidence": 0.99}, "vulnerable": [],
-                "hazards": [], "time_ref": {"text": None, "is_stale_post": True,
-                                            "confidence": 0.99},
-                "is_request": {"value": False, "confidence": 0.99}, "spans": [], "needs": [],
-                "request_kind": "other", "missing": True}
-    return extract
-
-
-_ids: dict[str, str] = {}
+    for row in rows:
+        rec = to_record(row)
+        if rec["id"] not in stored:
+            raise SystemExit(f"{path} has no output for {rec['id']}; run llm_baseline --sets "
+                             "product first (dev rows only)")
+        r = stored[rec["id"]]
+        by_text[row["raw_text"]] = (r["extracted"] if r.get("valid") and r.get("extracted")
+                                    else wrong_payload(rec))
+    return by_text.__getitem__
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -152,9 +145,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args(argv)
     rows = [r for r in read_jsonl(args.data) if r["split"] == args.split]
-    _ids.update({r["raw_text"]: f"product:{r['id']}" for r in rows})
     res = {m: report(rows, load_model(m).extract) for m in args.model}
-    res.update({f"llm:{p}": report(rows, stored_extract(Path(p))) for p in args.llm})
+    res.update({f"llm:{p}": report(rows, stored_extract(Path(p), rows)) for p in args.llm})
     text = json.dumps(res, indent=2)
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
