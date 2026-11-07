@@ -1,0 +1,61 @@
+name: synth
+run-name: synth ${{ inputs.name }}
+
+# Synthetic training data from open-weights models on Modal (modal_jobs/synth.py). The batch is
+# pushed to the branch synth/<name> for review; it reaches training only through a reviewed PR.
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Batch name, e.g. b0004-focus-qwen"
+        required: true
+      n:
+        description: "Specs to try"
+        default: "30"
+      seed:
+        description: "First seed"
+        default: "300000"
+      focus:
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  synth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install modal==1.6.3
+      - name: Generate on Modal
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          NAME: ${{ inputs.name }}
+          N: ${{ inputs.n }}
+          SEED: ${{ inputs.seed }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -eo pipefail
+          FLAG=$([ "$FOCUS" = "true" ] && echo "--focus" || echo "--no-focus")
+          modal run modal_jobs/synth.py --name "$NAME" --n "$N" --seed "$SEED" $FLAG \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Push the batch to synth/<name>
+        env:
+          NAME: ${{ inputs.name }}
+        run: |
+          set -eo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "synth/$NAME"
+          mkdir -p data/synthetic/staging
+          mv "$NAME.jsonl" "$NAME.rejected.jsonl" data/synthetic/staging/
+          git add data/synthetic/staging
+          git commit -m "Synthetic batch $NAME (open-weights, for review)"
+          git push origin "synth/$NAME"
