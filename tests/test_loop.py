@@ -90,3 +90,13 @@ def test_small_gap_noise_does_not_count_as_widening():
     champ = summarize(_result("c", real=0.80, synth=0.95))
     ok, why = gates(summarize(_result("a", real=0.80, synth=0.955)), champ)
     assert not ok and not any("gap" in w for w in why)
+
+
+def test_seed_repeats_are_never_promoted(tmp_path):
+    r = _result("s", real=0.95, synth=0.96)
+    r["config"]["purpose"] = "seed"
+    (tmp_path / "r.json").write_text(json.dumps(r))
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(summarize(_result("c", real=0.80))))
+    d = compare(tmp_path / "r.json", champ, None, promote=True)
+    assert not d["promote"] and json.loads(champ.read_text())["run"] == "c"

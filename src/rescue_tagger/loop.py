@@ -63,7 +63,7 @@ def summarize(result: dict[str, Any]) -> dict[str, Any]:
 
 def signature(cfg: dict[str, Any]) -> str:
     """Config identity ignoring seed and output paths, to group seed repeats."""
-    skip = {"seed", "out_dir", "data_dir"}
+    skip = {"seed", "out_dir", "data_dir", "purpose"}
     return json.dumps({k: v for k, v in sorted(cfg.items()) if k not in skip}, sort_keys=True)
 
 
@@ -122,10 +122,15 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
 
 def compare(candidate: Path, champion: Path, runs_dir: Path | None = None,
             promote: bool = False) -> dict[str, Any]:
-    cand = summarize(json.loads(candidate.read_text()))
+    result = json.loads(candidate.read_text())
+    cand = summarize(result)
     champ = json.loads(champion.read_text()) if champion.exists() else None
     spread = seed_spread(cand, runs_dir)
     ok, reasons = gates(cand, champ, spread)
+    if result["config"].get("purpose") == "seed" and ok:
+        # A seed repeat measures run-to-run noise; promoting the luckiest seed would bake that
+        # noise into the bar every later run has to beat.
+        ok, reasons = False, ["seed repeat: measures noise, never promoted"]
     decision = {"candidate": cand, "champion": champ and champ["run"], "seed_spread": spread,
                 "promote": ok, "reasons": reasons,
                 "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
