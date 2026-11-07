@@ -77,10 +77,11 @@ def serve(model: str) -> subprocess.Popen:
     if "gemma-4" in model.lower():
         # Gemma 4 checkpoints carry a vision tower; text only frees its memory for
         # the KV cache. In bf16 the 31B weights took 58 GiB and left room for ~1.5 requests of
-        # 8k tokens; FP8 weights (dynamic, H100-native) halve that so many requests run at once.
+        # 8k tokens; FP8 weights (one scale per output channel, activations scaled per token;
+        # H100-native) halve that so many requests run at once.
         # Thinking stays off (the chat template's default), so the constrained JSON answer
         # starts right away.
-        args += ["--language-model-only", "--quantization", "fp8"]
+        args += ["--language-model-only", "--quantization", "fp8_per_channel"]
     proc = subprocess.Popen([sys.executable, "-m", "vllm.entrypoints.openai.api_server", *args],
                             start_new_session=True)
     import urllib.request
