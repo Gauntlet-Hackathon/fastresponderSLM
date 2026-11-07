@@ -106,13 +106,15 @@ def test_backbone_baselines_do_not_count_as_rejections():
     assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-ep"
 
 
-def test_seed_repeat_runs_beside_the_main_run_when_allowed():
+def test_seed_repeat_runs_beside_the_main_run_in_queue_order():
     q = {**Q, "seed_parallel": 1}
-    act = next_action(q, st(decisions={"base": dec(True)}, active=["lr"]))
+    # seed7 is next in the queue: it may start beside a main run
+    act = next_action(q, st(active=["base"]))
     assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-seed7"
-    assert next_action(q, st(decisions={"base": dec(True)}, active=["lr", "seed7"]))["action"] \
-        == "wait"
-    assert next_action(Q, st(decisions={"base": dec(True)}, active=["lr"]))["action"] == "wait"
-    # no seed pending: wait
+    assert next_action(Q, st(active=["base"]))["action"] == "wait"  # seed_parallel off
+    # a main item is next: it waits for the main run, and seeds never jump ahead of it
     assert next_action(q, st(decisions={"base": dec(True), "seed7": dec(False)},
                              active=["lr"]))["action"] == "wait"
+    # a running seed never blocks the next main item
+    act = next_action(q, st(decisions={"base": dec(True)}, active=["seed7"]))
+    assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-lr"
