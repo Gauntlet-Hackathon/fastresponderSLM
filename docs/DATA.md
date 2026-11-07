@@ -19,10 +19,17 @@ requests (an offer of water is not a need). `request_kind` = `other` for non-req
 `search_and_rescue` -> rescue, `missing_people` -> welfare_check, any supply column -> supply,
 otherwise unknown. Rows with `related = 2` and ~50 upstream duplicate rows are dropped. Messages are
 the English translations; the originals (Haitian Creole, Urdu) stay in `meta`.
+In train and dev, `news`-genre rows are relabeled not-a-request: a news article is never someone
+asking for help, and upstream `request = 1` there mostly means "the article mentions needs"
+(about 4% of dev news rows). Test keeps the upstream labels.
 
 **HumAID.** `is_request` = class `requests_or_urgent_needs`. That class also covers donation
 appeals, which our rubric does not count as requests, so HumAID rows get loss weight 0.5.
 Non-requests get `request_kind = other`. `dont_know_cant_judge` rows are dropped.
+In train and dev, `is_request` is left unknown for `sympathy_and_support` and
+`rescue_volunteering_or_donation_effort`: those classes hold many real asks ("please send help,
+they have no water") labeled as not-a-request. Test and the Harvey hold-out keep upstream labels.
+Found from dev error examples (2026-11-07); fixed per category, never per example.
 
 **Synthetic.** A seeded RNG samples a spec (language, style, request or not, request kind, hazards,
 vulnerable people, needs with durations, location type, people count, time reference, contact,

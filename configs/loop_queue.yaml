@@ -2,7 +2,7 @@
 # Allowed changes only (see the overnight loop plan): seed, learning rate, epochs, dropout,
 # warmup, source shares (synthetic at most 0.5), category sampling via new synthetic batches.
 # Never: choosing by test score, training on eval misses, continuing from earlier weights.
-night: "2026-11-07"
+night: "2026-11-07b"         # restarted after the request-label fix (docs/DATA.md)
 max_runs: 10         # trained runs; re-scoring an existing model does not count
 max_rejections: 3    # rejected runs in a row before stopping (seed repeats excluded)
 max_parallel: 1      # one at a time, so each run is judged against the true current best

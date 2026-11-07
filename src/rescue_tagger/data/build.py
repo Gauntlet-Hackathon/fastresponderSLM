@@ -54,6 +54,34 @@ def protected_texts(paths: list[str]) -> list[str]:
     return out
 
 
+# Fields whose labels are derived from the upstream request flag; they change together.
+REQUEST_DERIVED = ("is_request", "request_kind", "needs")
+
+
+def _matches(rec: dict[str, Any], rules: dict[str, list[str]]) -> bool:
+    meta = rec.get("meta") or {}
+    return any(meta.get(key) in values for key, values in rules.items())
+
+
+def relabel_requests(rec: dict[str, Any], src: dict[str, Any]) -> None:
+    """Whole upstream categories whose request flag doesn't match the rubric:
+      not_request            -> never a request (e.g. Munro news articles: nobody is asking)
+      unreliable_is_request  -> request label left unknown (e.g. HumAID sympathy tweets, which hold
+                                many real asks labeled as not-a-request)
+    Train and dev only: test sets and Harvey keep their upstream labels unchanged."""
+    if rec["split"] not in ("train", "dev") or (rec.get("meta") or {}).get("harvey_holdout"):
+        return
+    if _matches(rec, src.get("not_request", {})):
+        lab = rec["labels"]
+        lab["is_request"] = False
+        lab["request_kind"] = "other"
+        if "needs" in lab:
+            lab["needs"] = dict.fromkeys(lab["needs"], False)
+    elif _matches(rec, src.get("unreliable_is_request", {})):
+        for f in REQUEST_DERIVED:
+            rec["labels"].pop(f, None)
+
+
 def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
     raw_dir = root / cfg["raw_dir"]
     out_dir = root / cfg["out_dir"]
@@ -79,6 +107,7 @@ def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
         w = src_cfg[rec["source"]].get("weight", 1.0)
         if w != 1.0:
             rec["weight"] = w
+        relabel_requests(rec, src_cfg[rec["source"]])
 
     # Everything that is evaluation-only is protected, plus configured external eval files.
     eval_only = [r for r in rows if r["split"] == "test"]
