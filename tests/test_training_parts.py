@@ -130,3 +130,6 @@ def test_one_duration_covers_a_listed_group_of_needs():
     assert kinds("no food or water for 2 days", "for 2 days", ("food",)) == ["food"]
     assert kinds("we have plenty of water at the shelter. no food for a day", "for a day") == [
         "food"]
+    # "med" inside "immediately" is not a meds keyword.
+    assert kinds("need insulin immediately, no food or water for 2 days", "for 2 days") == [
+        "food", "water"]

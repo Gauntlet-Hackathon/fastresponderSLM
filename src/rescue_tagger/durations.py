@@ -114,7 +114,7 @@ def needs_for_span(text: str, start: int, end: int, kinds: list[str]) -> list[tu
     both food and water (the rubric: one duration covering several needs applies to each)."""
     p = plain(text)
     hits = sorted((m.start(), m.end(), kind) for kind in kinds for word in NEED_WORDS[kind]
-                  for m in re.finditer(re.escape(word), p))
+                  for m in re.finditer(r"(?<!\w)" + re.escape(word), p))  # word starts only
     if not hits:
         return []
 

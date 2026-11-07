@@ -79,6 +79,9 @@ def device_is_medical(rec: dict) -> bool:
             rec["labels"]["vulnerable"].get("medical"):
         return False
     rec["labels"]["vulnerable"]["medical"] = True
+    spec = rec["meta"].get("spec") or {}
+    if "vulnerable" in spec and "medical" not in spec["vulnerable"]:
+        spec["vulnerable"] = [*spec["vulnerable"], "medical"]
     rec["gold_extracted"]["vulnerable"].append({"kind": "medical", "confidence": 1.0})
     rec["meta"]["relabeled"] = "medical_device_no_power implies medical (rubric)"
     return True

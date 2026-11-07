@@ -104,7 +104,7 @@ DEVICES = ("a home oxygen concentrator", "a CPAP machine", "a home dialysis mach
            "a ventilator", "a powered wheelchair that needs charging", "a nebulizer",
            "an electric feeding pump", "a suction machine")
 # Old posts name one of these, never Harvey: the Harvey hold-out is Harvey tweets, and "Harvey
-# means old post" is a shortcut (data/synthetic/fix_storm_names.py fixed the earlier batches).
+# means old post" is a shortcut (data/synthetic/fix_v3.py fixed the earlier batches).
 PAST_STORMS = ("Hurricane Ike in 2008", "Tropical Storm Allison in 2001",
                "Tropical Storm Imelda in 2019", "Hurricane Beryl in 2024", "Hurricane Rita in 2005",
                "the Memorial Day flood of 2015", "a past year such as 2016")
