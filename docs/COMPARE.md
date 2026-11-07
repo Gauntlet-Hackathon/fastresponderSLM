@@ -44,6 +44,9 @@ in `src/rescue_tagger/llm_baseline.py`; `--show-prompts` prints them.
   categories then remain untargeted, and only those measure generalization.
 - Since data v4 we train on the product team's sets C and D (their train rows; dev rows pick
   checkpoints). Those sets' held-back test split is the only fair product score; we never see it.
+  Set D (no usable location, pranks, unclear posts) overlaps the edge categories for non-requests,
+  text aimed at the AI and messages too vague to call, so from v4 on those edge categories are
+  partly in-distribution too.
 
 - This is a report, never a selection signal. Nothing in it picks a run, a threshold or a prompt.
   Each scoring of our model on test and Harvey is logged to `/runs/eval_reads.jsonl`.

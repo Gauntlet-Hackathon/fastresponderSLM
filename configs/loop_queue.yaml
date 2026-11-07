@@ -29,8 +29,8 @@ items:
   - {name: laya-v3-focus, config: configs/train_laya.yaml, purpose: baseline}
   - {name: laya-lr5e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 5.0e-5}}
   - {name: laya-dropout0.2, config: configs/train_laya.yaml, overrides: {dropout: 0.2}}
-  # laya-epochs6 was dropped at 18:10 UTC: its run hung past 2 hours (4-epoch runs take ~35 min)
-  # and was cancelled so the product-data baseline could start; it can be re-queued later.
+  # laya-epochs6 was cancelled at 18:08 UTC mid-training: it had waited 97 minutes for an L4
+  # before starting (not hung), and the product-data baseline had to start. Re-queued below.
   # Data v4: product sets C and D (train rows; dev rows pick checkpoints) and Gemma batch b0005.
   # Real-text dev is unchanged (product dev rows only pick checkpoints), so it must hold the v3
   # real-text score; trained at the champion lr. Its product-dev report is compared with s13 and v3 in results/product_dev/.
@@ -45,5 +45,7 @@ items:
      overrides: {lr_encoder: 5.0e-5, seed: 21}}
   - {name: laya-lr4e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 4.0e-5}}
   - {name: laya-lr7e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 7.0e-5}}
+  - {name: laya-v4-epochs6, config: configs/train_laya.yaml,
+     overrides: {lr_encoder: 5.0e-5, epochs: 6}}
   - {name: mmbert-seed7, config: configs/train_mmbert_small.yaml, purpose: seed,
      overrides: {seed: 7}}
