@@ -3,7 +3,7 @@
 # warmup, source shares (synthetic at most 0.5), category sampling via new synthetic batches.
 # Never: choosing by test score, training on eval misses, continuing from earlier weights.
 night: "2026-11-07b"         # restarted after the request-label fix (docs/DATA.md)
-max_runs: 10         # trained runs; re-scoring an existing model does not count
+max_runs: 15         # trained runs; re-scoring an existing model does not count
 max_rejections: 3    # rejected runs in a row before stopping (seed repeats excluded)
 max_parallel: 1      # one at a time, so each run is judged against the true current best
 launch_cutoff_utc: "10:30"   # no new launches until the morning test-set check has run
@@ -29,5 +29,13 @@ items:
   - {name: laya-lr5e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 5.0e-5}}
   - {name: laya-dropout0.2, config: configs/train_laya.yaml, overrides: {dropout: 0.2}}
   - {name: laya-epochs6, config: configs/train_laya.yaml, overrides: {epochs: 6}}
+  # lr 5e-5 won by more than the seed spread measured at 3e-5, on one seed: repeat it at the new
+  # setting before trusting it, then bracket it.
+  - {name: laya-lr5e-5-seed7, config: configs/train_laya.yaml, purpose: seed,
+     overrides: {lr_encoder: 5.0e-5, seed: 7}}
+  - {name: laya-lr5e-5-seed21, config: configs/train_laya.yaml, purpose: seed,
+     overrides: {lr_encoder: 5.0e-5, seed: 21}}
+  - {name: laya-lr4e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 4.0e-5}}
+  - {name: laya-lr7e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 7.0e-5}}
   - {name: mmbert-seed7, config: configs/train_mmbert_small.yaml, purpose: seed,
      overrides: {seed: 7}}
