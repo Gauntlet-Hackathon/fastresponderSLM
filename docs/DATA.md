@@ -89,8 +89,12 @@ more disputed fields rejects the row. Masking can lose labels but never adds a w
   location_type 80, needs 72, vulnerable 46, people_count 37. Caveat: Phi-4 often misses
   "device without power" (more so in Spanish), so the device hazard is masked in 57 of 93
   device rows. The batch still adds device text; the label is simply not taught on those rows.
-- **b0006-vague-gemma:** short, vague messages whose right answer is "unsure" (soft
-  `is_request` labels). Stats below once reviewed.
+  When a masked field has spans (a count's COUNT, a need's NEED_DURATION), the row's spans
+  become unknown too, so the token head never learns a disputed span (19 rows).
+- **Vague messages:** short messages whose right answer is "unsure" (soft `is_request` 0.5).
+  They carry no hard `is_request`, so a yes/no verifier could never reject one; their verifier
+  instead answers needs_help / no_help / cannot_tell, and only cannot_tell keeps the row.
+  b0006 was generated before that rule, so its texts are re-checked under it before they land.
 
 Real-text dev is unchanged from v3, so v4 runs are judged against the v3 champion directly and
 must hold its real-text score and critical fields.
