@@ -502,18 +502,55 @@ def build_record(spec: Spec, gen: dict[str, Any], model: str) -> dict[str, Any]:
 
 def disagreements(rec: dict[str, Any], v: dict[str, Any]) -> list[str]:
     """Heads where the blind verifier disagrees with the spec labels."""
+    return [msg for _, msg in _diffs(rec, v)]
+
+
+def _diffs(rec: dict[str, Any], v: dict[str, Any]) -> list[tuple[str, str]]:
     lab = rec["labels"]
     out = []
     for head in ("is_request", "is_stale_post", "request_kind", "location_type"):
         if head in lab and lab[head] != v[head]:  # a vague row has no is_request / request_kind
-            out.append(f"{head}: spec={lab[head]} verify={v[head]}")
+            out.append((head, f"{head}: spec={lab[head]} verify={v[head]}"))
     for head in ("hazards", "vulnerable", "needs"):
+        if head not in lab:
+            continue
         want = {k for k, on in lab[head].items() if on}
         if want != set(v[head]):
-            out.append(f"{head}: spec={sorted(want)} verify={sorted(v[head])}")
-    if rec["people_count"] != v["people_count"]:
-        out.append(f"people_count: spec={rec['people_count']} verify={v['people_count']}")
+            out.append((head, f"{head}: spec={sorted(want)} verify={sorted(v[head])}"))
+    if "people_count" in rec and rec["people_count"] != v["people_count"]:
+        out.append(("people_count",
+                    f"people_count: spec={rec['people_count']} verify={v['people_count']}"))
     return out
+
+
+# A row whose text the verifier reads differently on a few fields is still good text: those fields
+# become unknown (masked from the loss, never guessed), as with the edge cases' second labeler.
+# Disagreeing on whether it is a request at all, or on many fields, means the text is off-spec.
+MAX_MASKED = 2
+
+
+def apply_verdict(rec: dict[str, Any], v: dict[str, Any], verify_model: str
+                  ) -> dict[str, Any]:
+    """{"record": rec} (disagreeing heads masked) or {"seed", "error", "text"} if rejected."""
+    seed = rec["meta"]["spec"]["seed"]
+    diffs = _diffs(rec, v)
+    heads = [h for h, _ in diffs]
+    rec["meta"]["verifier"] = verify_model
+    if "is_request" in heads or len(heads) > MAX_MASKED:
+        return {"seed": seed, "error": "verify: " + "; ".join(m for _, m in diffs),
+                "text": rec["text"]}
+    if heads:
+        for h in heads:
+            if h == "people_count":
+                del rec["people_count"]
+            else:
+                del rec["labels"][h]
+                if h == "needs":
+                    rec.pop("need_hours", None)
+        rec["meta"]["masked"] = {h: m for h, m in diffs}
+        rec.pop("gold_extracted", None)  # no longer matches the labels (few-shots skip it)
+        validate_record(rec)
+    return {"record": rec}
 
 
 def _client():
@@ -550,10 +587,7 @@ def generate_one(client, seed: int, gen_model: str, verify_model: str | None,
         if verify_model:
             v = _call_json(client, verify_model, VERIFY_SYSTEM, rec["text"], VERIFY_SCHEMA,
                            "labels")
-            diff = disagreements(rec, v)
-            rec["meta"]["verifier"] = verify_model
-            if diff:
-                return {"seed": seed, "error": "verify: " + "; ".join(diff), "text": rec["text"]}
+            return apply_verdict(rec, v, verify_model)
         return {"record": rec}
     except Exception as e:  # noqa: BLE001 - every failure is a rejected row, logged with its seed
         return {"seed": seed, "error": f"{type(e).__name__}: {e}"}
@@ -564,12 +598,7 @@ def verify_record(client, rec: dict[str, Any], verify_model: str) -> dict[str, A
         v = _call_json(client, verify_model, VERIFY_SYSTEM, rec["text"], VERIFY_SCHEMA, "labels")
     except Exception as e:  # noqa: BLE001 - a failed check is a rejected row
         return {"seed": rec["meta"]["spec"]["seed"], "error": f"{type(e).__name__}: {e}"}
-    diff = disagreements(rec, v)
-    if diff:
-        return {"seed": rec["meta"]["spec"]["seed"], "error": "verify: " + "; ".join(diff),
-                "text": rec["text"]}
-    rec["meta"]["verifier"] = verify_model
-    return {"record": rec}
+    return apply_verdict(rec, v, verify_model)
 
 
 def main(argv: list[str] | None = None) -> int:

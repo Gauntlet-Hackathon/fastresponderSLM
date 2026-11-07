@@ -49,6 +49,15 @@ Inference now gives a duration to every need listed with it ("no food or water f
 only the nearest one (`durations.needs_for_span`). Real-text dev is unchanged, so the first v3 run must hold the v2
 champion's real-text score (`REAL_DEV_SAME` in `loop.py`) before it becomes the v3 baseline.
 
+**Open-weights generation (2026-11-07, from batch b0004).** Gemma 4 31B (Apache-2.0) writes and
+Phi-4 (MIT) labels blind, on Modal (`modal_jobs/synth.py`); batches land in `data/synthetic/staging/`
+for review first. When the verifier disagrees on one or two fields, those fields become unknown
+(masked from the loss) and the row is kept, with the disagreements in `meta.masked`. It is
+rejected if the verifier disagrees on whether it is a request at all, or on three or more fields
+(`apply_verdict`, `MAX_MASKED`). With whole-row rejection the 20-spec pilot kept 2 rows: the text
+was fine, and most disagreements were the verifier missing a powered device or reading cross
+streets as an address.
+
 **Synthetic.** A seeded RNG samples a spec (language, style, request or not, request kind, hazards,
 vulnerable people, needs with durations, location type, people count, time reference, contact,
 prompt injection). `gpt-5.5` writes a message expressing exactly that spec and quotes the span

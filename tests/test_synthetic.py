@@ -142,3 +142,42 @@ def test_vague_specs_become_soft_labeled_records():
          "people_count": None}
     assert S.disagreements(rec, v) == []  # the verifier's call on is_request is not checked
     assert S.disagreements(rec, {**v, "hazards": ["fire"]})
+
+
+def test_a_few_disagreeing_fields_are_masked_not_rejected(monkeypatch):
+    from rescue_tagger.data import synthetic as S
+    from rescue_tagger.records import validate_record
+
+    spec = S.sample_focus_spec(300001)
+    gen = {"text": "x", "LOCATION": None, "COUNT": None, "TIME": None, "CONTACT": None,
+           "NEED_DURATION": dict.fromkeys(S.L.NEED_KINDS)}
+    spec.location_type, spec.people_count = "none", None
+
+    def fresh():
+        return S.build_record(spec, gen, "google/gemma-4-31B-it")
+
+    lab = fresh()["labels"]
+    agree = {"is_request": lab["is_request"], "is_stale_post": lab["is_stale_post"],
+             "request_kind": lab["request_kind"], "location_type": lab["location_type"],
+             "hazards": [k for k, v in lab["hazards"].items() if v],
+             "vulnerable": [k for k, v in lab["vulnerable"].items() if v],
+             "needs": [k for k, v in lab["needs"].items() if v], "people_count": None}
+    wrong_needs = [k for k in S.L.NEED_KINDS if k not in agree["needs"]][:1]
+    two_off = {**agree, "location_type": "landmark", "needs": wrong_needs, "people_count": 4}
+
+    out = S.apply_verdict(fresh(), {**agree, "location_type": "landmark",
+                                    "needs": wrong_needs}, "microsoft/phi-4")
+    rec = out["record"]
+    assert "location_type" not in rec["labels"] and "needs" not in rec["labels"]
+    assert "need_hours" not in rec and "gold_extracted" not in rec
+    assert set(rec["meta"]["masked"]) == {"location_type", "needs"}
+    assert rec["labels"]["hazards"] == lab["hazards"]  # agreed heads keep their labels
+    validate_record(rec)
+
+    assert "error" in S.apply_verdict(fresh(), two_off, "microsoft/phi-4")  # three heads off
+    assert "error" in S.apply_verdict(fresh(), {**agree, "is_request": not agree["is_request"]},
+                                      "microsoft/phi-4")
+    rec = S.apply_verdict(fresh(), {**agree, "people_count": 4}, "microsoft/phi-4")["record"]
+    assert "people_count" not in rec and "gold_extracted" not in rec
+    clean = S.apply_verdict(fresh(), agree, "microsoft/phi-4")["record"]
+    assert "masked" not in clean["meta"] and "gold_extracted" in clean
