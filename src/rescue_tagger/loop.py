@@ -25,6 +25,7 @@ MIN_GAIN = 0.005
 MAX_ECE = 0.10        # absolute ceiling on any field's calibration error
 MAX_ECE_RISE = 0.02   # and no field may get worse than the current best by more than this
 MAX_LATENCY_MS = 100.0
+GAP_TOLERANCE = 0.01
 # Metrics that make up the real-text score (only those present in the report count).
 REAL_METRICS = ("is_request_accuracy", "needs_f1", "request_kind_accuracy")
 SCORED_SUFFIXES = ("_accuracy", "_f1", "location_exact")
@@ -111,7 +112,10 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
         c, b = cand["critical"].get(k), champ["critical"].get(k)
         if c is not None and b is not None and b - c > MAX_DROP:
             fails.append(f"{k} dropped {b:.4f} -> {c:.4f}")
-    if cand["gap"] is not None and champ.get("gap") is not None and cand["gap"] > champ["gap"]:
+    # The gap counts as widened only past noise, and only when real text did not improve.
+    gap_tol = max(GAP_TOLERANCE, 2 * spread) if spread else GAP_TOLERANCE
+    if (cand["gap"] is not None and champ.get("gap") is not None
+            and cand["gap"] - champ["gap"] > gap_tol and gain <= 0):
         fails.append(f"synthetic-vs-real gap widened {champ['gap']} -> {cand['gap']}")
     return not fails, fails or [f"real-text score up {gain:+.4f}"]
 

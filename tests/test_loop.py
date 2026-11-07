@@ -84,3 +84,9 @@ def test_calibration_may_not_get_worse_than_champion():
     champ = summarize(_result("c", real=0.80, ece=0.03))
     ok, why = gates(summarize(_result("a", real=0.85, synth=0.99, ece=0.07)), champ)
     assert not ok and any("worsened" in w for w in why)
+
+
+def test_small_gap_noise_does_not_count_as_widening():
+    champ = summarize(_result("c", real=0.80, synth=0.95))
+    ok, why = gates(summarize(_result("a", real=0.80, synth=0.955)), champ)
+    assert not ok and not any("gap" in w for w in why)

@@ -28,9 +28,19 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 from rescue_tagger import labels as L
 from rescue_tagger.features import IGNORE, collate, encode
 from rescue_tagger.model import RescueTagger
-from rescue_tagger.records import read_jsonl
+from rescue_tagger.records import dev_half, read_jsonl
 
 FORBIDDEN_SPLITS = {"test"}
+
+
+def parse_override(kv: str) -> tuple[str, Any]:
+    """`key=value` -> (key, value). JSON first (so 2e-05 is a float, which YAML 1.1 reads as a
+    string), YAML as the fallback for bare words."""
+    k, v = kv.split("=", 1)
+    try:
+        return k, json.loads(v)
+    except json.JSONDecodeError:
+        return k, yaml.safe_load(v)
 
 
 def load_split(data_dir: Path, split: str, limit: int | None = None) -> list[dict[str, Any]]:
@@ -129,7 +139,9 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     model.to(device)
     limit = cfg.get("limit_rows")
     train_rows = load_split(data_dir, "train", limit)
-    dev_rows = load_split(data_dir, "dev", limit)
+    # Checkpointing and early stopping use only the "calib" half of dev; the "select" half is
+    # kept untouched for ranking runs against each other.
+    dev_rows = [r for r in load_split(data_dir, "dev", limit) if dev_half(r["id"]) == "calib"]
     enc = [encode(r, tok, model.cfg.max_length) for r in train_rows]
     random.Random(seed).shuffle(dev_rows)  # mix sources within dev batches
     dev_enc = [encode(r, tok, model.cfg.max_length) for r in dev_rows]
@@ -169,7 +181,9 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
 
     history: list[dict[str, Any]] = []
     best, step, since_best, stopped_early = float("inf"), 0, 0, False
-    train_sum, train_n = 0.0, 0
+    # Training loss is kept as the same macro average over heads as dev loss, so the two curves
+    # are directly comparable.
+    train_parts: dict[str, list[float]] = {}
     t0 = time.time()
     model.train()
     for epoch in range(cfg["epochs"]):
@@ -187,8 +201,8 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
             sched.step()
             opt.zero_grad(set_to_none=True)
             step += 1
-            train_sum += float(loss)
-            train_n += 1
+            for k, v in parts.items():
+                train_parts.setdefault(k, []).append(v)
             if step % cfg.get("log_every", 50) == 0:
                 print(json.dumps({"step": step, "loss": round(float(loss), 4),
                                   **{k: round(v, 4) for k, v in parts.items()}}), flush=True)
@@ -196,14 +210,15 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
                 continue
             dl, per_head = dev_loss(model, dev_loader, head_weights, device)
             entry = {"epoch": epoch + 1, "step": step,
-                     "train_loss": round(train_sum / max(train_n, 1), 4),
+                     "train_loss": round(sum(sum(v) / len(v) for v in train_parts.values())
+                                         / max(len(train_parts), 1), 4),
                      "dev_loss": round(dl, 4),
                      "dev_per_head": {k: round(v, 4) for k, v in per_head.items()},
                      "minutes": round((time.time() - t0) / 60, 2)}
             for name, sub_loader in subset_loaders.items():
                 entry[f"dev_loss_{name}"] = round(dev_loss(model, sub_loader, head_weights,
                                                            device)[0], 4)
-            train_sum, train_n = 0.0, 0
+            train_parts = {}
             if dl < best:
                 best, since_best = dl, 0
                 model.save(out_dir / "best", tok)
@@ -232,8 +247,8 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     cfg = yaml.safe_load(args.config.read_text(encoding="utf-8"))
     for kv in args.set:
-        k, v = kv.split("=", 1)
-        cfg[k] = yaml.safe_load(v)
+        k, v = parse_override(kv)
+        cfg[k] = v
     print(json.dumps(train(cfg), indent=2))
     return 0
 

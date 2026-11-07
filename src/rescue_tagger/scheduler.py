@@ -38,6 +38,7 @@ class State:
     active: list[str]                      # run names queued or running on GitHub
     failures: dict[str, int]               # run name -> failed workflow attempts
     run_dirs: list[str] = field(default_factory=list)  # top-level dirs on the volume
+    succeeded: set[str] = field(default_factory=set)   # run names whose workflow succeeded
 
 
 def run_name(night: str, item: dict[str, Any]) -> str:
@@ -65,6 +66,8 @@ def next_action(queue: dict[str, Any], st: State) -> dict[str, Any]:
         if st.failures.get(name, 0) >= 2:
             return {"action": "stop", "why": f"{name} failed twice"}
         if d is None:
+            if name in st.succeeded:
+                return {"action": "stop", "why": f"{name} finished without a decision; check it"}
             if name not in st.active:
                 pending.append(item)
             continue
@@ -73,8 +76,9 @@ def next_action(queue: dict[str, Any], st: State) -> dict[str, Any]:
         if d["promote"]:
             rejections = gap_streak = 0
             continue
-        if item.get("purpose") != "seed":
-            rejections += 1
+        if item.get("purpose") == "seed":
+            continue  # seed repeats are expected to tie; they count toward neither streak
+        rejections += 1
         gap_streak = gap_streak + 1 if any("gap widened" in r for r in d["reasons"]) else 0
         if gap_streak >= 2:
             return {"action": "stop", "why": "synthetic-vs-real gap widened on 2 runs in a row"}
@@ -90,7 +94,8 @@ def next_action(queue: dict[str, Any], st: State) -> dict[str, Any]:
         return {"action": "wait", "why": f"{len(st.active)} run(s) in progress"}
     item = pending[0]
     inputs = {"config": item["config"], "publish": "false", "final": "false",
-              "overrides": " ".join(f"{k}={v}" for k, v in item.get("overrides", {}).items()),
+              "overrides": " ".join(f"{k}={json.dumps(v, separators=(',', ':'))}"
+                                    for k, v in item.get("overrides", {}).items()),
               "run_name": run_name(night, item), "reuse": ""}
     if item.get("reuse"):
         src = resolve_reuse(item["reuse"], st.run_dirs)
@@ -114,9 +119,9 @@ def _gh(method: str, path: str, body: dict | None = None) -> Any:
     return json.loads(raw) if raw else None
 
 
-def _github_runs() -> tuple[list[str], dict[str, int]]:
+def _github_runs() -> tuple[list[str], dict[str, int], set[str]]:
     runs = _gh("GET", f"/actions/workflows/{WORKFLOW}/runs?per_page=100")["workflow_runs"]
-    active, failures = [], {}
+    active, failures, succeeded = [], {}, set()
     for r in runs:
         title = r.get("display_title", "")
         if not title.startswith("train "):
@@ -126,7 +131,9 @@ def _github_runs() -> tuple[list[str], dict[str, int]]:
             active.append(name)
         elif r.get("conclusion") in ("failure", "timed_out", "cancelled"):
             failures[name] = failures.get(name, 0) + 1
-    return active, failures
+        elif r.get("conclusion") == "success":
+            succeeded.add(name)
+    return active, failures, succeeded
 
 
 def _volume_state() -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -138,7 +145,7 @@ def _volume_state() -> tuple[dict[str, dict[str, Any]], list[str]]:
     for d in dirs:
         try:
             decisions[d] = json.loads(b"".join(vol.read_file(f"{d}/decision.json")))
-        except Exception:  # noqa: BLE001 - no decision yet (running, failed, or old pipeline)
+        except FileNotFoundError:  # no decision yet (running, failed, or old pipeline)
             continue
     return decisions, dirs
 
@@ -150,8 +157,9 @@ def _dispatch(inputs: dict[str, str], ref: str) -> None:
 def tick(dry_run: bool = False) -> dict[str, Any]:
     queue = yaml.safe_load(QUEUE.read_text(encoding="utf-8"))
     decisions, dirs = _volume_state()
-    active, failures = _github_runs()
-    st = State(decisions, active, failures, dirs)
+    active, failures, succeeded = _github_runs()
+    # A run that succeeded before decisions existed (old pipeline) has none; only loop runs count.
+    st = State(decisions, active, failures, dirs, {n for n in succeeded if n.startswith("loop-")})
     skipped: list[str] = []
     while True:
         act = next_action(queue, st)
@@ -171,14 +179,17 @@ def final(dry_run: bool = False) -> dict[str, Any]:
     vol = modal.Volume.from_name(VOLUME)
     try:
         champ = json.loads(b"".join(vol.read_file("champion.json")))
-    except Exception:  # noqa: BLE001
+    except FileNotFoundError:
         return {"action": "stop", "why": "no best model yet"}
     day = time.strftime("%Y-%m-%d", time.gmtime())
     name = f"final-{day}"
-    active, _ = _github_runs()
+    active, _, _ = _github_runs()
     dirs = [e.path.strip("/") for e in vol.listdir("/")]
     if name in dirs or name in active:
         return {"action": "wait", "why": f"{name} already scored"}
+    if active:
+        # Score the best model only once nothing can replace it; retried until 14:30 UTC.
+        return {"action": "wait", "why": f"{len(active)} run(s) still going"}
     queue = yaml.safe_load(QUEUE.read_text(encoding="utf-8"))
     cfg = next((i["config"] for i in queue["items"]
                 if run_name(queue["night"], i) == champ["run"]), "configs/train_laya.yaml")

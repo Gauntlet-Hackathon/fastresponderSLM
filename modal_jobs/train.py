@@ -104,19 +104,26 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str],
             score(name, data, *extra)
             log_eval_read(reads, run_name, name)
 
+    from rescue_tagger.train import parse_override
+
     cfg = yaml.safe_load(Path(config).read_text())
     for kv in overrides:
-        k, v = kv.split("=", 1)
-        cfg[k] = yaml.safe_load(v)
+        k, v = parse_override(kv)
+        cfg[k] = v
     result = {"run": run_name, "config": cfg, "reused_weights_from": reuse or None,
               "eval": reports}
     history = Path(f"{out_dir}/history.json")
     if history.exists():
         result["history"] = json.loads(history.read_text())
     Path(f"{out_dir}/result.json").write_text(json.dumps(result, indent=2) + "\n")
+    # See runs that finished while this one trained (the champion and seed repeats), decide,
+    # and commit at once so the next run compares against this decision.
+    runs.commit()
+    runs.reload()
     result["decision"] = compare(Path(f"{out_dir}/result.json"), Path("/runs/champion.json"),
                                  Path("/runs"), promote=True)
     Path(f"{out_dir}/decision.json").write_text(json.dumps(result["decision"], indent=2) + "\n")
+    runs.commit()
     if publish:
         from rescue_tagger.publish import publish as push
 

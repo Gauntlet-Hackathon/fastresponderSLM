@@ -46,8 +46,11 @@ def test_stops_after_rejections_in_a_row():
 def test_stops_when_gap_widens_twice():
     q = {**Q, "max_rejections": 9}
     g = "synthetic-vs-real gap widened 0.1 -> 0.2"
-    act = next_action(q, st(decisions={"base": dec(True), "seed7": dec(False, g),
-                                       "lr": dec(False, g)}))
+    # seed repeats don't count toward the streak
+    assert next_action(q, st(decisions={"base": dec(True), "seed7": dec(False, g),
+                                        "lr": dec(False, g)}))["action"] == "launch"
+    act = next_action(q, st(decisions={"base": dec(True), "lr": dec(False, g),
+                                       "drop": dec(False, g)}))
     assert act["action"] == "stop" and "gap" in act["why"]
 
 
@@ -61,3 +64,27 @@ def test_stops_at_run_cap_and_on_repeated_failure():
 def test_unresolvable_reuse_is_skipped():
     assert next_action(Q, st(dirs=()))["action"] == "skip"
     assert resolve_reuse("latest:x", ["x-1", "x-2", "y-3"]) == "x-2"
+
+
+def test_finished_without_decision_stops_instead_of_relaunching():
+    s = st()
+    s.succeeded = {"loop-n1-base"}
+    assert next_action(Q, s)["action"] == "stop"
+
+
+def test_queue_overrides_round_trip_with_types():
+    from pathlib import Path
+
+    import yaml
+
+    from rescue_tagger.train import parse_override
+
+    q = yaml.safe_load(Path("configs/loop_queue.yaml").read_text())
+    for item in q["items"]:
+        if item.get("reuse"):
+            continue
+        act = next_action({**q, "items": [item]}, State({}, [], {}, []))
+        parsed = dict(parse_override(kv) for kv in act["inputs"]["overrides"].split())
+        assert parsed == item.get("overrides", {}), item["name"]
+        for k, v in parsed.items():
+            assert type(v) is type(item["overrides"][k]), (item["name"], k)

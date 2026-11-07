@@ -1,12 +1,12 @@
 name: loop
 
 # Overnight training loop. Every 30 minutes: launch the next queued experiment if nothing is
-# running and no stop rule has hit (see src/rescue_tagger/scheduler.py). At 12:00 UTC (6 am in
-# Houston in winter): score the best model on the test sets once.
+# running and no stop rule has hit (see src/rescue_tagger/scheduler.py). From 12:00 UTC (6 am in
+# Houston in winter): score the best model on the test sets once, as soon as no run is going.
 on:
   schedule:
     - cron: "*/30 * * * *"
-    - cron: "0 12 * * *"
+    - cron: "0,30 12-14 * * *"
   workflow_dispatch:
     inputs:
       cmd:
@@ -35,16 +35,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install modal pyyaml
+      - run: pip install modal==1.6.3 pyyaml
       - name: Run scheduler
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: src
-          CMD: ${{ github.event.schedule == '0 12 * * *' && 'final' || inputs.cmd || 'tick' }}
+          CMD: ${{ github.event.schedule == '0,30 12-14 * * *' && 'final' || inputs.cmd || 'tick' }}
           DRY_RUN: ${{ inputs.dry_run }}
+        shell: bash
         run: |
+          set -eo pipefail
           FLAG=""
           if [ "$DRY_RUN" = "true" ]; then FLAG="--dry-run"; fi
           python -m rescue_tagger.scheduler "$CMD" $FLAG | tee -a "$GITHUB_STEP_SUMMARY"

@@ -5,7 +5,7 @@
 night: "2026-11-07"
 max_runs: 8          # trained runs per night; re-scoring an existing model does not count
 max_rejections: 3    # rejected runs in a row before stopping (seed repeats excluded)
-max_parallel: 2
+max_parallel: 1      # one at a time, so each run is judged against the true current best
 items:
   # Baselines: re-score tonight's first two runs with the new dev split and gates (no training).
   - {name: laya-base, config: configs/train_laya.yaml, reuse: "latest:train_laya"}
@@ -23,5 +23,5 @@ items:
   # Source mix: less synthetic, more real text.
   - name: laya-synth0.35
     config: configs/train_laya.yaml
-    overrides: {source_share: '{"synthetic":0.35,"munro":0.4,"humaid":0.25}'}
+    overrides: {source_share: {synthetic: 0.35, munro: 0.4, humaid: 0.25}}
   - {name: laya-seed21, config: configs/train_laya.yaml, purpose: seed, overrides: {seed: 21}}
