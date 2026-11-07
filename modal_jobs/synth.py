@@ -29,7 +29,7 @@ image = (
     modal.Image.debian_slim(python_version="3.12")
     # Gemma 4 needs vLLM >= 0.27 (gemma4 model code) and transformers 5; vLLM pins the
     # transformers range it was built against.
-    .pip_install("vllm==0.31.0", "openai>=2.25", "jsonschema>=4.23", "referencing>=0.35",
+    .pip_install("vllm==0.31.0", "openai>=2.25,<4", "jsonschema>=4.23", "referencing>=0.35",
                  "pyyaml>=6.0")
     .env({"PYTHONPATH": f"{REMOTE_ROOT}/src", "HF_HUB_ENABLE_HF_TRANSFER": "0"})
     .add_local_dir(REPO_ROOT, REMOTE_ROOT, ignore=[".venv", ".git", "outputs", "data/raw",
@@ -72,7 +72,7 @@ def serve(model: str) -> subprocess.Popen:
     args = ["--model", model, "--port", str(PORT), "--max-model-len", "8192",
             "--gpu-memory-utilization", "0.92"]
     if "gemma-4" in model.lower():
-        # Gemma 4 checkpoints carry vision and audio towers; text only frees their memory for
+        # Gemma 4 checkpoints carry a vision tower; text only frees its memory for
         # the KV cache. Thinking stays off (the chat template's default), so the constrained
         # JSON answer starts right away.
         args.append("--language-model-only")
