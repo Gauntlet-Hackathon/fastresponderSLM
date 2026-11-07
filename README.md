@@ -54,7 +54,8 @@ Environment: `OPENAI_SLM_API_KEY` (synthetic generation), `HF_TOKEN` (dataset do
 
 ## Overnight training loop
 
-`.github/workflows/loop.yml` runs when a train run finishes and every 30 minutes. It launches the next experiment from
+`.github/workflows/loop.yml` runs when a train run finishes (each main-branch train run dispatches it
+from its last step) and every 30 minutes. It launches the next experiment from
 `configs/loop_queue.yaml` on Modal when nothing is running, one change per run, each from the
 original base model. Each run calibrates on one fixed half of dev and is scored on the other half,
 then `rescue_tagger.loop` compares it with the current best model (`/runs/champion.json` on the
@@ -69,7 +70,11 @@ Modal volume) and promotes it only if every gate passes:
 The loop stops itself after the run cap, 3 rejections in a row, the gap widening twice, or the same
 run failing twice. It ticks whenever a train run finishes, with a cron every 30 minutes as a fallback.
 From 12:07 UTC it scores the best model on the test sets and Harvey once; every
-such read is logged to `/runs/eval_reads.jsonl`. Test sets are never used to choose between runs.
+such read is logged to `/runs/eval_reads.jsonl`. Test and Harvey are reported with upstream labels
+(primary) and with the docs/DATA.md category rules applied (secondary).
+
+To stop the loop, cancel the running train run and the loop tick it starts; a cancelled run is
+relaunched once, and the loop stops after the same item fails twice. Test sets are never used to choose between runs.
 
 ## Data rules (non-negotiable)
 
