@@ -178,11 +178,19 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     subset_loaders = {
         name: DataLoader(sub, batch_size=cfg["batch_size"] * 2,
                          collate_fn=lambda x: collate(x, pad))
-        for name, sub in (("real", real_dev), ("synthetic", synth_dev), ("product", product_dev))
+        for name, sub in (("real", real_dev), ("synthetic", synth_dev), ("product", product_dev),
+                          ("base", [e for e, r in zip(dev_enc, dev_rows, strict=True)
+                                    if r["source"] != "product"]))
         if sub}
     # The product rows are ~0.3% of dev, so on their own they could never move the checkpoint;
-    # they get a fixed share of the checkpoint score instead (0 = plain macro dev loss).
-    product_w = cfg.get("checkpoint_product_weight", 0.0) if product_dev else 0.0
+    # they get a fixed share of the checkpoint score instead (0 = plain macro dev loss). The two
+    # parts are blended relative to their first dev check: the product rows label heads the
+    # real-text rows mostly don't (people count, location type), so their absolute loss is ~10x
+    # larger and, unscaled, picked the very first checkpoint (laya-v4: step 750 of 3000, which
+    # cost 0.03 real-text score).
+    product_w = (cfg.get("checkpoint_product_weight", 0.0)
+                 if product_dev and len(product_dev) < len(dev_enc) else 0.0)
+    first: dict[str, float] = {}
     eval_every = cfg.get("eval_every_steps") or steps_per_epoch
     patience = cfg.get("early_stop_patience", 2)  # dev checks without improvement before stopping
 
@@ -229,7 +237,10 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
                                                            device)[0], 4)
             train_parts = {}
             if product_w:
-                dl = (1 - product_w) * dl + product_w * entry["dev_loss_product"]
+                base, prod = entry["dev_loss_base"], entry["dev_loss_product"]
+                first = first or {"base": max(base, 1e-6), "product": max(prod, 1e-6)}
+                dl = ((1 - product_w) * base / first["base"]
+                      + product_w * prod / first["product"])
                 entry["checkpoint_score"] = round(dl, 4)
             if dl < best:
                 best, since_best = dl, 0

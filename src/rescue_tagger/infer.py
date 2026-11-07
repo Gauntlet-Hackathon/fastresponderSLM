@@ -79,20 +79,25 @@ def decode_spans(text: str, offsets: list[tuple[int, int]], tag_ids: list[int],
 
 class Extractor:
     def __init__(self, model: RescueTagger, tokenizer, temperatures: dict[str, float],
-                 model_version: str = "local", threads: int = 4) -> None:
+                 model_version: str = "local", threads: int = 4, device: str = "cpu") -> None:
         torch.set_num_threads(threads)
-        self.model = model.eval()
+        self.device = torch.device(device)
+        if self.device.type == "cuda":  # full fp32 matmuls, so scores match a CPU run
+            torch.backends.cuda.matmul.allow_tf32 = False
+            torch.backends.cudnn.allow_tf32 = False
+        self.model = model.eval().to(self.device)
         self.tok = tokenizer
         self.t = temperatures
         self.model_version = model_version
 
     @classmethod
-    def load(cls, model_dir: str | Path, model_version: str = "local", threads: int = 4):
+    def load(cls, model_dir: str | Path, model_version: str = "local", threads: int = 4,
+             device: str = "cpu"):
         model_dir = Path(model_dir)
         model, tok = RescueTagger.load(model_dir)
         cal = model_dir / "calibration.json"
         temps = json.loads(cal.read_text())["temperatures"] if cal.exists() else {}
-        return cls(model, tok, temps, model_version, threads)
+        return cls(model, tok, temps, model_version, threads, device)
 
     def _T(self, head: str) -> float:
         return float(self.t.get(head, 1.0))
@@ -103,7 +108,8 @@ class Extractor:
         enc = self.tok(text, truncation=True, max_length=self.model.cfg.max_length,
                        return_offsets_mapping=True, return_tensors="pt")
         offsets = [tuple(o) for o in enc["offset_mapping"][0].tolist()]
-        out = self.model(enc["input_ids"], enc["attention_mask"])
+        out = self.model(enc["input_ids"].to(self.device), enc["attention_mask"].to(self.device))
+        out = {k: v.float().cpu() for k, v in out.items()}
         tok_probs = torch.softmax(out["token_logits"][0] / self._T("tokens"), -1)
         tag_p, tag_id = tok_probs.max(-1)
         probs: dict[str, Any] = {}

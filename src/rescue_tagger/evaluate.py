@@ -58,7 +58,12 @@ def cpu_name() -> str:
 
 
 def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
-             consistency_n: int = 50, latency_passes: int = LATENCY_PASSES) -> dict[str, Any]:
+             consistency_n: int = 50, latency_passes: int = LATENCY_PASSES,
+             timing_ex: Extractor | None = None) -> dict[str, Any]:
+    """`timing_ex` (default `ex`) is the CPU extractor that latency and consistency are measured
+    on; `ex` may run on a GPU to score many rows quickly."""
+    timing_ex = timing_ex or ex
+    separate_timing = timing_ex is not ex
     stats: dict[str, Any] = {h: {"correct": 0, "n": 0} for h in
                              ("is_request", "is_stale_post", "request_kind", "location_type",
                               "people_count")}
@@ -125,19 +130,26 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
 
     # Shared CPUs are noisy: one busy neighbour can add 50% to a pass. Time the same fixed rows a
     # few more times and keep the fastest median; contention only ever adds time.
+    scoring_s = sum(latencies)
+    if separate_timing and rows:  # time the CPU extractor instead, one more pass in its place
+        latencies = []
+        for rec in rows[:LATENCY_ROWS]:
+            t0 = time.perf_counter()
+            timing_ex.extract(rec["text"])
+            latencies.append(time.perf_counter() - t0)
     medians = [statistics.median(latencies[:LATENCY_ROWS])] if latencies else []
     for _ in range(latency_passes if latencies else 0):
         t = []
         for rec in rows[:LATENCY_ROWS]:
             t0 = time.perf_counter()
-            ex.extract(rec["text"])
+            timing_ex.extract(rec["text"])
             t.append(time.perf_counter() - t0)
         medians.append(statistics.median(t))
 
     changed = 0
     for rec in rows[:consistency_n]:
-        first = json.dumps(ex.extract(rec["text"]), sort_keys=True)
-        if any(json.dumps(ex.extract(rec["text"]), sort_keys=True) != first
+        first = json.dumps(timing_ex.extract(rec["text"]), sort_keys=True)
+        if any(json.dumps(timing_ex.extract(rec["text"]), sort_keys=True) != first
                for _ in range(repeats - 1)):
             changed += 1
 
@@ -171,7 +183,8 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
     report["latency_median_ms"] = round(min(medians) * 1000, 2)
     report["latency_first_pass_ms"] = round(statistics.median(latencies) * 1000, 2)
     report["cpu"] = cpu_name()
-    report["seconds_per_1000"] = round(sum(latencies) / len(latencies) * 1000, 2)
+    report["seconds_per_1000"] = round(scoring_s / max(len(rows), 1) * 1000, 2)
+    report["scored_on"] = str(getattr(ex, "device", "cpu"))
     report["consistency_changed_pct"] = round(100 * changed / max(min(consistency_n, len(rows)),
                                                                   1), 2)
     return report
@@ -188,12 +201,17 @@ def main(argv: list[str] | None = None) -> int:
                     help="only rows in this fixed half of dev")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--device", choices=["auto", "cpu"], default="auto",
+                    help="auto: score on a GPU when there is one; latency is always timed on CPU")
     args = ap.parse_args(argv)
     rows = [r for r in read_jsonl(args.data) if args.source in (None, r["source"])
             and r["source"] not in args.exclude_source
             and (args.half is None or dev_half(r["id"]) == args.half)]
     rows = rows[: args.limit] if args.limit else rows
-    report = evaluate(Extractor.load(args.model_dir), rows)
+    cpu = Extractor.load(args.model_dir)
+    gpu = (Extractor.load(args.model_dir, device="cuda")
+           if args.device == "auto" and torch.cuda.is_available() else None)
+    report = evaluate(gpu or cpu, rows, timing_ex=cpu)
     text = json.dumps(report, indent=2)
     print(text)
     if args.out:
