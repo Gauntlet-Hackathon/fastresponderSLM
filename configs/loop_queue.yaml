@@ -3,7 +3,7 @@
 # warmup, source shares (synthetic at most 0.5), category sampling via new synthetic batches.
 # Never: choosing by test score, training on eval misses, continuing from earlier weights.
 night: "2026-11-07b"         # restarted after the request-label fix (docs/DATA.md)
-max_runs: 17         # trained runs; re-scoring an existing model does not count
+max_runs: 18         # trained runs; re-scoring an existing model does not count
 max_rejections: 4    # rejected runs in a row before stopping (seed repeats excluded); 4 so a
                      # rejected dropout0.2 + epochs6 + lr4e-5 still lets lr7e-5 run
 max_parallel: 1      # one at a time, so each run is judged against the true current best
@@ -42,6 +42,10 @@ items:
   # is_request 0.5). Synthetic only, so it must hold the v4 real-text score. Seed repeats below
   # that run after this lands repeat the v5 setting.
   - {name: laya-v5, config: configs/train_laya.yaml, purpose: baseline,
+     overrides: {lr_encoder: 5.0e-5}}
+  # Data v6: + b0008, 307 Gemma rows (61 Vietnamese) weighted toward the least-covered
+  # categories. Synthetic only, so it must hold the real-text floor.
+  - {name: laya-v6, config: configs/train_laya.yaml, purpose: baseline,
      overrides: {lr_encoder: 5.0e-5}}
   # lr 5e-5 won by more than the seed spread measured at 3e-5, on one seed: repeat it at the new
   # setting before trusting it, then bracket it.

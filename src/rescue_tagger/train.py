@@ -231,7 +231,9 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
                                          / max(len(train_parts), 1), 4),
                      "dev_loss": round(dl, 4),
                      "dev_per_head": {k: round(v, 4) for k, v in per_head.items()},
-                     "minutes": round((time.time() - t0) / 60, 2)}
+                     "minutes": round((time.time() - t0) / 60, 2),
+                     "device": (torch.cuda.get_device_name(device) if device.type == "cuda"
+                                else "cpu")}
             for name, sub_loader in subset_loaders.items():
                 entry[f"dev_loss_{name}"] = round(dev_loss(model, sub_loader, head_weights,
                                                            device)[0], 4)

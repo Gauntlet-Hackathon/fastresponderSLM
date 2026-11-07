@@ -111,6 +111,15 @@ more disputed fields rejects the row. Masking can lose labels but never adds a w
   (a bare place with no ask), and 29 a location type the verifier disputed (masked).
 - Synthetic only, so real-text dev is the same as v4 and laya-v5 must hold v4's real-text score.
 
+## Data v6 (Gemma batch with Vietnamese)
+
+- **b0008-v6-gemma:** 307 of 600 kept (293 rejected by the blind Phi-4 check). Languages: 131
+  English, 68 Spanish, 61 Vietnamese (new in v6), 47 mixed. Focus categories: indirect vulnerable
+  151, powered medical device 63, old posts 51, shared durations 42. Weights come from training
+  counts after v5, never from eval text. 257 rows have one or two fields masked where the verifier
+  disagreed.
+- Synthetic only, so real-text dev is unchanged.
+
 ## Known gaps
 
 - Public data is English only. Spanish and mixed text come from synthetic data alone.
