@@ -3,6 +3,7 @@ run-name: synth ${{ inputs.name }}
 
 # Synthetic training data from open-weights models on Modal (modal_jobs/synth.py). The batch is
 # pushed to the branch synth/<name> for review; it reaches training only through a reviewed PR.
+# One run at a time: an H100 costs about $4/hour against the $100 Modal cap.
 on:
   workflow_dispatch:
     inputs:
@@ -22,6 +23,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: synth
+  cancel-in-progress: false
+
 jobs:
   synth:
     runs-on: ubuntu-latest
@@ -32,6 +37,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install modal==1.6.3
+      - name: Refuse a name already used (before any GPU time is spent)
+        env:
+          NAME: ${{ inputs.name }}
+        run: |
+          if git ls-remote --exit-code --heads origin "synth/$NAME" >/dev/null; then
+            echo "branch synth/$NAME already exists; pick a new batch name" >&2
+            exit 1
+          fi
       - name: Generate on Modal
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}

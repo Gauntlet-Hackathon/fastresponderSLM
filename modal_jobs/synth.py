@@ -56,7 +56,7 @@ def serve(model: str) -> subprocess.Popen:
     raise RuntimeError(f"vLLM did not come up for {model}")
 
 
-@app.function(gpu="H100", timeout=3 * 3600,
+@app.function(gpu="H100", timeout=2 * 3600,
               volumes={"/runs": runs, "/root/.cache/huggingface": hf_cache},
               secrets=[modal.Secret.from_dict({"HF_TOKEN": os.environ.get("HF_TOKEN", "")})])
 def generate(name: str, n: int, seed: int, focus: bool, gen_model: str,

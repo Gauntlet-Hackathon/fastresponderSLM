@@ -496,7 +496,8 @@ def _client():
     key = os.environ.get("OPENAI_SLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
     if not key:
         raise SystemExit("Set OPENAI_SLM_API_KEY or OPENAI_API_KEY")
-    return OpenAI(api_key=key)
+    # Explicit, so local vLLM traffic (modal_jobs/synth.py) can never fall through to OpenAI.
+    return OpenAI(api_key=key, base_url=os.environ.get("OPENAI_BASE_URL") or None)
 
 
 def _call_json(client, model: str, system: str, user: str, schema: dict, name: str) -> dict:
