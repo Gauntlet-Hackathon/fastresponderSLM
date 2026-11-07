@@ -250,3 +250,16 @@ def test_mix_spec_covers_code_switch_stale_and_third_party():
     third = [sp for sp in specs if sp.third_party]
     assert third and all("NOT with the writer" in sp.style for sp in third)
     assert sample_mix_spec(350001) == sample_mix_spec(350001)
+
+
+def test_implied_spec_names_p1_hazards_only_through_the_situation():
+    from rescue_tagger.data.synthetic import build_prompt, sample_implied_spec
+
+    specs = [sample_implied_spec(360000 + i) for i in range(200)]
+    assert all(sp.is_request and sp.hazards and sp.hazard_implied for sp in specs)
+    assert sum(sp.vulnerable_indirect for sp in specs) > 80
+    assert sum("typed fast" in sp.style or "terse" in sp.style or "hedged" in sp.style
+               for sp in specs) > 120
+    prompt = build_prompt(specs[0])
+    assert "ONLY through the situation" in prompt
+    assert sample_implied_spec(360001) == sample_implied_spec(360001)

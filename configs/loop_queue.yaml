@@ -6,7 +6,7 @@ night: "2026-11-07b"         # restarted after the request-label fix (docs/DATA.
 max_runs: 22         # trained runs; re-scoring an existing model does not count
 max_rejections: 4    # rejected runs in a row before stopping (seed repeats excluded); 4 so a
                      # rejected dropout0.2 + epochs6 + lr4e-5 still lets lr7e-5 run
-max_parallel: 1      # one at a time, so each run is judged against the true current best
+max_parallel: 2      # Paawan 20:27: run the v8 variants side by side (each is judged against the champion at its finish)
 seed_parallel: 1     # plus one seed repeat beside it (never promoted, so no one is judged against it)
 launch_cutoff_utc: "10:30"   # no new launches until the morning test-set check has run
 resume_utc: "14:15"         # morning check done at 13:53; Paawan asked to restart at 14:14

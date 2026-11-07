@@ -352,3 +352,25 @@ def test_latency_and_consistency_use_the_timing_extractor():
     assert gpu.n == 3  # one scoring pass
     assert cpu.n == 3 * (1 + E.LATENCY_PASSES) + 2 * 3  # timing passes + consistency
     assert rep["scored_on"] == "cuda"
+
+
+def test_handoff_field_floor_allows_measured_seed_noise(tmp_path):
+    old = _result("old", real=0.85)
+    old["config"]["data_version"] = 2
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(summarize(old)))
+    new = _result("new", real=0.85)
+    new["eval"]["dev_real"].update(is_request_accuracy=0.88, needs_f1=0.82)
+    new["config"]["data_version"] = 3
+    (tmp_path / "new.json").write_text(json.dumps(new))
+    runs = tmp_path / "runs"
+    d = compare(tmp_path / "new.json", champ, runs)       # no seed repeats yet: 0.03 is too much
+    assert not d["promote"] and any("needs_f1 dropped" in r for r in d["reasons"])
+    for name, seed, needs in (("s1", 13, 0.80), ("s2", 7, 0.83)):  # two seeds 0.03 apart
+        r = _result(name, real=0.85, seed=seed)
+        r["eval"]["dev_real"]["needs_f1"] = needs
+        r["config"]["data_version"] = 3
+        (runs / name).mkdir(parents=True)
+        (runs / name / "result.json").write_text(json.dumps(r))
+    d = compare(tmp_path / "new.json", champ, runs)
+    assert not any("needs_f1 dropped" in r for r in d["reasons"]), d["reasons"]

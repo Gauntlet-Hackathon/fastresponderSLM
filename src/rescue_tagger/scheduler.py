@@ -176,6 +176,18 @@ def _dirs(vol: Any) -> list[str]:
     return [e.path.strip("/") for e in vol.listdir("/") if e.type == FileEntryType.DIRECTORY]
 
 
+def _retry(fn: Any, waits: tuple[float, ...] = (5, 15, 45)) -> Any:
+    """Call fn, retrying on any error after each wait (Modal rate-limits volume listings with
+    ResourceExhaustedError; one failed tick would otherwise drop the hand-off)."""
+    for w in waits:
+        try:
+            return fn()
+        except Exception as e:  # noqa: BLE001 - transient remote errors of several kinds
+            print(f"retrying in {w}s after {type(e).__name__}: {e}")
+            time.sleep(w)
+    return fn()
+
+
 def _volume_state() -> tuple[dict[str, dict[str, Any]], list[str]]:
     import modal
 
@@ -216,7 +228,7 @@ def tick(dry_run: bool = False) -> dict[str, Any]:
     # GitHub first: a run seen as succeeded has already committed its decision before the
     # volume is read, so it can't look finished-without-a-decision by a timing accident.
     active, failures, succeeded = _github_runs()
-    decisions, dirs = _volume_state()
+    decisions, dirs = _retry(_volume_state)
     # A run that succeeded before decisions existed (old pipeline) has none; only loop runs count.
     st = State(decisions, active, failures, dirs, {n for n in succeeded if n.startswith("loop-")})
     skipped: list[str] = []

@@ -131,3 +131,18 @@ def test_seeds_beyond_seed_parallel_hold_the_main_slot():
     # seed7 and the seed-purpose "lr" both run: the main item "drop" must wait
     act = next_action(q, st(decisions={"base": dec(True)}, active=["seed7", "lr"]))
     assert act["action"] == "wait"
+
+
+def test_retry_recovers_from_transient_errors(monkeypatch):
+    from rescue_tagger import scheduler
+
+    monkeypatch.setattr(scheduler.time, "sleep", lambda s: None)
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise RuntimeError("ResourceExhaustedError")
+        return "ok"
+
+    assert scheduler._retry(flaky) == "ok" and len(calls) == 3

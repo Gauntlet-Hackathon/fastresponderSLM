@@ -118,10 +118,12 @@ def signature(cfg: dict[str, Any]) -> str:
     return json.dumps({k: v for k, v in sorted(cfg.items()) if k not in skip}, sort_keys=True)
 
 
-def seed_spread(candidate: dict[str, Any], runs_dir: Path | None) -> float | None:
+def seed_spread(candidate: dict[str, Any], runs_dir: Path | None,
+                field: str | None = None) -> float | None:
     """Run-to-run noise for the candidate's backbone: the largest standard deviation of real-text
-    score within any group of finished runs that differ only by seed (the seed repeats of the
-    baseline). It applies to every experiment on that backbone, not only to seed repeats."""
+    score (or of one real-text critical field) within any group of finished runs that differ only
+    by seed (the seed repeats of the baseline). It applies to every experiment on that backbone,
+    not only to seed repeats."""
     if runs_dir is None:
         return None
     groups: dict[str, list[float]] = {}
@@ -130,10 +132,11 @@ def seed_spread(candidate: dict[str, Any], runs_dir: Path | None) -> float | Non
             s = summarize(json.loads(p.read_text()))
         except (KeyError, json.JSONDecodeError):
             continue  # runs from before dev reports existed
-        if (s["backbone"] == candidate.get("backbone") and s["real_score"] is not None
+        v = s["real_score"] if field is None else (s.get("critical_real") or {}).get(field)
+        if (s["backbone"] == candidate.get("backbone") and v is not None
                 and same_real_dev(s["data_version"], candidate.get("data_version"))
                 and not s["reused"]):
-            groups.setdefault(s["signature"], []).append(s["real_score"])
+            groups.setdefault(s["signature"], []).append(v)
     spreads = [statistics.stdev(v) for v in groups.values() if len(v) >= 2]
     return round(max(spreads), 4) if spreads else None
 
@@ -234,7 +237,10 @@ def compare(candidate: Path, champion: Path, runs_dir: Path | None = None,
                     continue
                 n = max(x for x in ((champ.get("n_real") or {}).get(k),
                                     (cand.get("n_real") or {}).get(k), 0) if x is not None)
-                ktol = min(max(MAX_DROP, noise(b, n if 0 < n < SMALL_N else None)),
+                # Measured seed noise on this field counts too: one lucky champion draw must not
+                # veto every later data version (v5 vs its seed repeat differed by 0.03 needs F1).
+                fspread = seed_spread(cand, runs_dir, k) or 0.0
+                ktol = min(max(MAX_DROP, noise(b, n if 0 < n < SMALL_N else None), 2 * fspread),
                            MAX_DROP_TOL)
                 if b - c > ktol:
                     floor_fails.append(f"real-text {k} dropped {b:.4f} -> {c:.4f} on the "
