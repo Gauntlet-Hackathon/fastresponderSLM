@@ -1,4 +1,5 @@
-"""Overnight loop driver, run by .github/workflows/loop.yml every 30 minutes.
+"""Overnight loop driver, run by .github/workflows/loop.yml when a train run finishes and every
+30 minutes.
 
   python -m rescue_tagger.scheduler tick  [--dry-run]
   python -m rescue_tagger.scheduler final [--dry-run]
@@ -220,7 +221,7 @@ def final(dry_run: bool = False) -> dict[str, Any]:
             and "result.json" in {e.path.rsplit("/", 1)[-1] for e in vol.listdir(name)}):
         return {"action": "wait", "why": f"{name} already scored"}
     if active:
-        # Score the best model only once nothing can replace it; retried until 14:30 UTC.
+        # Score the best model only once nothing can replace it; retried until 14:37 UTC.
         return {"action": "wait", "why": f"{len(active)} run(s) still going"}
     queue = yaml.safe_load(QUEUE.read_text(encoding="utf-8"))
     item = next((i for i in queue["items"] if run_name(queue["night"], i) == champ["run"]),
