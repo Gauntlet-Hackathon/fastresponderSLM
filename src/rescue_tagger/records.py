@@ -25,6 +25,7 @@ Record keys:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Iterable, Iterator
 from functools import cache
@@ -147,3 +148,10 @@ def read_jsonl(path: Path) -> Iterator[dict[str, Any]]:
                     yield json.loads(line)
                 except json.JSONDecodeError as e:
                     raise ValueError(f"{path}:{lineno}: {e}") from e
+
+
+def dev_half(rec_id: str) -> str:
+    """Fixed half of the dev split a row belongs to: "calib" (fits temperatures) or "select"
+    (scores runs against each other). Keeping them apart stops calibration error from being
+    measured on the rows it was fitted on."""
+    return "calib" if int(hashlib.sha256(rec_id.encode()).hexdigest(), 16) % 2 == 0 else "select"

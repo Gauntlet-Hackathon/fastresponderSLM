@@ -4,6 +4,10 @@
 
 Reads data/processed/{train,dev}.jsonl (built by rescue_tagger.data.build). Never reads test or
 harvey. Writes <out_dir>/best/ (loadable with RescueTagger.load) and <out_dir>/history.json.
+
+Guards: a dev check every `eval_every_steps` (default once per epoch) logs training loss next to
+dev loss (all, real text, synthetic) so over- and underfitting are visible; the run stops after
+`early_stop_patience` checks without a new best, and a non-finite loss fails the run at once.
 """
 
 from __future__ import annotations
@@ -24,9 +28,19 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 from rescue_tagger import labels as L
 from rescue_tagger.features import IGNORE, collate, encode
 from rescue_tagger.model import RescueTagger
-from rescue_tagger.records import read_jsonl
+from rescue_tagger.records import dev_half, read_jsonl
 
 FORBIDDEN_SPLITS = {"test"}
+
+
+def parse_override(kv: str) -> tuple[str, Any]:
+    """`key=value` -> (key, value). JSON first (so 2e-05 is a float, which YAML 1.1 reads as a
+    string), YAML as the fallback for bare words."""
+    k, v = kv.split("=", 1)
+    try:
+        return k, json.loads(v)
+    except json.JSONDecodeError:
+        return k, yaml.safe_load(v)
 
 
 def load_split(data_dir: Path, split: str, limit: int | None = None) -> list[dict[str, Any]]:
@@ -125,7 +139,9 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     model.to(device)
     limit = cfg.get("limit_rows")
     train_rows = load_split(data_dir, "train", limit)
-    dev_rows = load_split(data_dir, "dev", limit)
+    # Checkpointing and early stopping use only the "calib" half of dev; the "select" half is
+    # kept untouched for ranking runs against each other.
+    dev_rows = [r for r in load_split(data_dir, "dev", limit) if dev_half(r["id"]) == "calib"]
     enc = [encode(r, tok, model.cfg.max_length) for r in train_rows]
     random.Random(seed).shuffle(dev_rows)  # mix sources within dev batches
     dev_enc = [encode(r, tok, model.cfg.max_length) for r in dev_rows]
@@ -152,7 +168,22 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     use_amp = device.type == "cuda" and cfg.get("bf16", True)
     head_weights = cfg.get("head_weights", {})
 
-    history, best, step = [], float("inf"), 0
+    # Dev checks: real text and synthetic are tracked apart, so a run that only learns the
+    # generator's style shows up as a widening gap; the checkpoint is picked on all of dev.
+    real_dev = [e for e, r in zip(dev_enc, dev_rows, strict=True) if r["source"] != "synthetic"]
+    synth_dev = [e for e, r in zip(dev_enc, dev_rows, strict=True) if r["source"] == "synthetic"]
+    subset_loaders = {
+        name: DataLoader(sub, batch_size=cfg["batch_size"] * 2,
+                         collate_fn=lambda x: collate(x, pad))
+        for name, sub in (("real", real_dev), ("synthetic", synth_dev)) if sub}
+    eval_every = cfg.get("eval_every_steps") or steps_per_epoch
+    patience = cfg.get("early_stop_patience", 2)  # dev checks without improvement before stopping
+
+    history: list[dict[str, Any]] = []
+    best, step, since_best, stopped_early = float("inf"), 0, 0, False
+    # Training loss is kept as the same macro average over heads as dev loss, so the two curves
+    # are directly comparable.
+    train_parts: dict[str, list[float]] = {}
     t0 = time.time()
     model.train()
     for epoch in range(cfg["epochs"]):
@@ -162,26 +193,51 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
                 out = model(b["input_ids"], b["attention_mask"])
             out = {k: v.float() for k, v in out.items()}
             loss, parts = compute_loss(out, b, head_weights)
+            if not torch.isfinite(loss):
+                raise FloatingPointError(f"non-finite loss at step {step + 1}: {parts}")
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.get("max_grad_norm", 1.0))
             opt.step()
             sched.step()
             opt.zero_grad(set_to_none=True)
             step += 1
+            for k, v in parts.items():
+                train_parts.setdefault(k, []).append(v)
             if step % cfg.get("log_every", 50) == 0:
                 print(json.dumps({"step": step, "loss": round(float(loss), 4),
                                   **{k: round(v, 4) for k, v in parts.items()}}), flush=True)
-        dl, per_head = dev_loss(model, dev_loader, head_weights, device)
-        history.append({"epoch": epoch + 1, "step": step, "dev_loss": dl,
-                        "dev_per_head": {k: round(v, 4) for k, v in per_head.items()},
-                        "minutes": round((time.time() - t0) / 60, 2)})
-        print(json.dumps(history[-1]), flush=True)
-        if dl < best:
-            best = dl
-            model.save(out_dir / "best", tok)
+            if step % eval_every and step != total_steps:
+                continue
+            dl, per_head = dev_loss(model, dev_loader, head_weights, device)
+            entry = {"epoch": epoch + 1, "step": step,
+                     "train_loss": round(sum(sum(v) / len(v) for v in train_parts.values())
+                                         / max(len(train_parts), 1), 4),
+                     "dev_loss": round(dl, 4),
+                     "dev_per_head": {k: round(v, 4) for k, v in per_head.items()},
+                     "minutes": round((time.time() - t0) / 60, 2)}
+            for name, sub_loader in subset_loaders.items():
+                entry[f"dev_loss_{name}"] = round(dev_loss(model, sub_loader, head_weights,
+                                                           device)[0], 4)
+            train_parts = {}
+            if dl < best:
+                best, since_best = dl, 0
+                model.save(out_dir / "best", tok)
+                entry["saved"] = True
+            else:
+                since_best += 1
+            history.append(entry)
+            print(json.dumps(entry), flush=True)
+            (out_dir / "history.json").write_text(json.dumps(history, indent=2) + "\n")
+            if since_best >= patience:
+                stopped_early = True
+                break
+        if stopped_early:
+            print(json.dumps({"early_stop": True, "step": step, "best_dev_loss": best}), flush=True)
+            break
     (out_dir / "history.json").write_text(json.dumps(history, indent=2) + "\n")
     (out_dir / "train_config.json").write_text(json.dumps(cfg, indent=2) + "\n")
-    return {"best_dev_loss": best, "history": history}
+    return {"best_dev_loss": best, "stopped_early": stopped_early, "steps": step,
+            "history": history}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -191,8 +247,8 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     cfg = yaml.safe_load(args.config.read_text(encoding="utf-8"))
     for kv in args.set:
-        k, v = kv.split("=", 1)
-        cfg[k] = yaml.safe_load(v)
+        k, v = parse_override(kv)
+        cfg[k] = v
     print(json.dumps(train(cfg), indent=2))
     return 0
 

@@ -15,6 +15,7 @@ import argparse
 import json
 import statistics
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +24,7 @@ import torch
 from rescue_tagger import labels as L
 from rescue_tagger.calibrate import ece
 from rescue_tagger.infer import Extractor
-from rescue_tagger.records import read_jsonl
+from rescue_tagger.records import dev_half, read_jsonl
 
 
 def f1(tp: int, fp: int, fn: int) -> float:
@@ -46,6 +47,7 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
     loc = {"exact": 0, "partial": 0, "n": 0}
     conf: dict[str, list[tuple[float, bool]]] = {h: [] for h in ("is_request", "location",
                                                                   "hazards", "vulnerable")}
+    gold_counts: dict[str, Counter] = {h: Counter() for h in stats}
     latencies = []
     for rec in rows:
         t0 = time.perf_counter()
@@ -56,18 +58,22 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
             ok = pay["is_request"]["value"] == lab["is_request"]
             stats["is_request"]["correct"] += ok
             stats["is_request"]["n"] += 1
+            gold_counts["is_request"][lab["is_request"]] += 1
             conf["is_request"].append((pay["is_request"]["confidence"], ok))
         if "is_stale_post" in lab:
             stats["is_stale_post"]["correct"] += pay["time_ref"]["is_stale_post"] == lab[
                 "is_stale_post"]
             stats["is_stale_post"]["n"] += 1
+            gold_counts["is_stale_post"][lab["is_stale_post"]] += 1
         if "request_kind" in lab:
             stats["request_kind"]["correct"] += pay["request_kind"] == lab["request_kind"]
             stats["request_kind"]["n"] += 1
+            gold_counts["request_kind"][lab["request_kind"]] += 1
         if "location_type" in lab:
             ok = pay["location"]["type"] == lab["location_type"]
             stats["location_type"]["correct"] += ok
             stats["location_type"]["n"] += 1
+            gold_counts["location_type"][lab["location_type"]] += 1
             conf["location"].append((pay["location"]["confidence"], ok))
         if rec["spans"] is not None and "location_type" in lab and lab["location_type"] != "none":
             gold, got = span_text(rec, "LOCATION"), pay["location"]["text"]
@@ -78,6 +84,7 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
         if "people_count" in rec:
             stats["people_count"]["correct"] += pay["people_count"]["value"] == rec["people_count"]
             stats["people_count"]["n"] += 1
+            gold_counts["people_count"][rec["people_count"]] += 1
         for head in L.MULTI_LABEL_HEADS:
             if head not in lab:
                 continue
@@ -105,6 +112,9 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
         if s["n"]:
             report[f"{h}_accuracy"] = round(s["correct"] / s["n"], 4)
             report[f"{h}_n"] = s["n"]
+            # "Always guess the most common answer": a model at or below this has learned nothing.
+            report[f"{h}_majority_baseline"] = round(
+                gold_counts[h].most_common(1)[0][1] / s["n"], 4)
     for h, s in multi.items():
         if s["tp"] + s["fp"] + s["fn"]:
             report[f"{h}_f1"] = round(f1(s["tp"], s["fp"], s["fn"]), 4)
@@ -128,10 +138,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("model_dir", type=Path)
     ap.add_argument("--data", type=Path, required=True)
     ap.add_argument("--source", default=None, help="only rows from this source")
+    ap.add_argument("--exclude-source", default=None, help="drop rows from this source")
+    ap.add_argument("--half", choices=["calib", "select"], default=None,
+                    help="only rows in this fixed half of dev")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args(argv)
-    rows = [r for r in read_jsonl(args.data) if args.source in (None, r["source"])]
+    rows = [r for r in read_jsonl(args.data) if args.source in (None, r["source"])
+            and r["source"] != args.exclude_source
+            and (args.half is None or dev_half(r["id"]) == args.half)]
     rows = rows[: args.limit] if args.limit else rows
     report = evaluate(Extractor.load(args.model_dir), rows)
     text = json.dumps(report, indent=2)
