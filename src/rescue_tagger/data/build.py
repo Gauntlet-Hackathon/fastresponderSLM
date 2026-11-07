@@ -39,7 +39,14 @@ def protected_texts(paths: list[str]) -> list[str]:
     """Texts from eval files: JSONL rows with raw_text or text."""
     out: list[str] = []
     for pattern in paths:
-        for p in sorted(glob.glob(os.path.expandvars(pattern))):
+        expanded = os.path.expandvars(pattern)
+        if "$" in expanded:
+            raise SystemExit(
+                f"protected_texts entry {pattern!r} needs an unset environment variable. Set "
+                "EVAL_REPO to a checkout of Gauntlet-Hackathon/gauntletvshackathon so its eval "
+                "sets are kept out of training (or remove the entry deliberately)."
+            )
+        for p in sorted(glob.glob(expanded)):
             for row in read_jsonl(Path(p)):
                 t = row.get("raw_text") or row.get("text")
                 if t:

@@ -35,3 +35,13 @@ def test_synthetic_split_is_fixed_and_balanced():
     assert splits == [synthetic_split(i, 10, 5) for i in ids]
     assert 0.03 < splits.count("test") / 5000 < 0.07
     assert 0.08 < splits.count("dev") / 5000 < 0.12
+
+
+def test_unset_eval_repo_fails_loudly(monkeypatch):
+    import pytest
+
+    from rescue_tagger.data.build import protected_texts
+
+    monkeypatch.delenv("EVAL_REPO", raising=False)
+    with pytest.raises(SystemExit, match="EVAL_REPO"):
+        protected_texts(["$EVAL_REPO/evals/sets/*.jsonl"])

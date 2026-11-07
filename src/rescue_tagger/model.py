@@ -38,7 +38,7 @@ class TaggerConfig:
     max_length: int = 256
 
 
-def load_encoder(backbone: str) -> tuple[nn.Module, object]:
+def load_encoder(backbone: str, revision: str | None = None) -> tuple[nn.Module, object]:
     """Returns (encoder, tokenizer) for a backbone name or a local directory."""
     from transformers import AutoModel, AutoTokenizer
 
@@ -47,16 +47,19 @@ def load_encoder(backbone: str) -> tuple[nn.Module, object]:
         from safetensors.torch import load_file
         from transformers import ModernBertConfig, ModernBertModel
 
-        cfg = ModernBertConfig.from_pretrained(backbone, subfolder="encoder")
+        cfg = ModernBertConfig.from_pretrained(backbone, subfolder="encoder",
+                                               revision=revision)
         encoder = ModernBertModel(cfg)
-        state = load_file(hf_hub_download(backbone, "model.safetensors"))
+        state = load_file(hf_hub_download(backbone, "model.safetensors", revision=revision))
         enc_state = {k[len("encoder."):]: v for k, v in state.items() if k.startswith("encoder.")}
         missing, unexpected = encoder.load_state_dict(enc_state, strict=False)
         if missing or unexpected:
             raise RuntimeError(f"Laya encoder mismatch: missing={missing} unexpected={unexpected}")
-        tokenizer = AutoTokenizer.from_pretrained(backbone, subfolder="tokenizer")
+        tokenizer = AutoTokenizer.from_pretrained(backbone, subfolder="tokenizer",
+                                                  revision=revision)
         return encoder, tokenizer
-    return AutoModel.from_pretrained(backbone), AutoTokenizer.from_pretrained(backbone)
+    return (AutoModel.from_pretrained(backbone, revision=revision),
+            AutoTokenizer.from_pretrained(backbone, revision=revision))
 
 
 class RescueTagger(nn.Module):
@@ -75,8 +78,9 @@ class RescueTagger(nn.Module):
         self.heads["people_count"] = nn.Linear(h, cfg.count_classes)
 
     @classmethod
-    def from_backbone(cls, backbone: str, **kw) -> tuple[RescueTagger, object]:
-        encoder, tokenizer = load_encoder(backbone)
+    def from_backbone(cls, backbone: str, revision: str | None = None,
+                      **kw) -> tuple[RescueTagger, object]:
+        encoder, tokenizer = load_encoder(backbone, revision)
         cfg = TaggerConfig(backbone=backbone, hidden_size=encoder.config.hidden_size, **kw)
         return cls(cfg, encoder), tokenizer
 

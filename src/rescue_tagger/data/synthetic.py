@@ -298,15 +298,24 @@ VERIFY_SCHEMA: dict[str, Any] = {
 }
 
 
-def find_span(text: str, quote: str | None, label: str) -> dict[str, Any] | None:
-    """First exact match of `quote` in `text`; None if absent; raises if quoted but missing."""
+def find_span(text: str, quote: str | None, label: str,
+              taken: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    """First exact match of `quote` not overlapping `taken`; None if no quote; raises if the
+    quote is missing from the text."""
     if not quote:
         return None
     quote = quote.strip()
+    taken = taken or []
     start = text.find(quote)
     if start < 0:
         raise ValueError(f"{label} quote not found in text: {quote!r}")
-    return {"start": start, "end": start + len(quote), "label": label}
+    first = start
+    while start >= 0:
+        end = start + len(quote)
+        if not any(start < t["end"] and t["start"] < end for t in taken):
+            return {"start": start, "end": end, "label": label}
+        start = text.find(quote, start + 1)
+    return {"start": first, "end": first + len(quote), "label": label}  # overlap -> rejected
 
 
 def _remove_overlaps(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -321,13 +330,15 @@ def _remove_overlaps(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def build_record(spec: Spec, gen: dict[str, Any], model: str) -> dict[str, Any]:
     """Turn a spec + generator output into a validated record. Raises ValueError if inconsistent."""
     text = gen["text"].strip()
-    spans = [s for s in (
-        find_span(text, gen.get("LOCATION"), "LOCATION"),
-        find_span(text, gen.get("COUNT"), "COUNT"),
-        find_span(text, gen.get("TIME"), "TIME"),
-        find_span(text, gen.get("CONTACT"), "CONTACT"),
-        *(find_span(text, gen["NEED_DURATION"].get(k), "NEED_DURATION") for k in L.NEED_KINDS),
-    ) if s is not None]
+    spans: list[dict[str, Any]] = []
+    # Longest quotes first, each at its first occurrence that does not overlap one already placed,
+    # so a COUNT "3" is not found inside the address "3810 Navigation Blvd".
+    quotes = [(gen.get(lab), lab) for lab in ("LOCATION", "COUNT", "TIME", "CONTACT")]
+    quotes += [(gen["NEED_DURATION"].get(k), "NEED_DURATION") for k in L.NEED_KINDS]
+    for quote, label in sorted(quotes, key=lambda q: -len(q[0] or "")):
+        sp = find_span(text, quote, label, taken=spans)
+        if sp is not None and not any(sp == t for t in spans):
+            spans.append(sp)
     spans = _remove_overlaps(spans)
     has = {s["label"] for s in spans}
     if (spec.location_type == "none") == ("LOCATION" in has):

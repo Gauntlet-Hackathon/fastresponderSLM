@@ -20,9 +20,6 @@ REMOTE_ROOT = "/root/repo"
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("git")
-    # The product repo's eval sets are protected from training by the leak check (EVAL_REPO).
-    .run_commands("git clone --depth 1 https://github.com/Gauntlet-Hackathon/gauntletvshackathon "
-                  "/root/eval_repo")
     .pip_install(
         "torch==2.15.0",
         "transformers==5.22.2",
@@ -35,7 +32,7 @@ image = (
         "pyarrow>=17",
     )
     .env({"PYTHONPATH": f"{REMOTE_ROOT}/src", "TOKENIZERS_PARALLELISM": "false",
-          "EVAL_REPO": "/root/eval_repo"})
+          "EVAL_REPO": "/tmp/eval_repo"})
     .add_local_dir(REPO_ROOT, REMOTE_ROOT, ignore=[".venv", ".git", "outputs", "data/raw",
                                                      "data/processed", "**/__pycache__"])
 )
@@ -62,6 +59,10 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str]) ->
         print("+", " ".join(cmd), flush=True)
         subprocess.run(cmd, check=True)
 
+    # Fresh clone every run (not an image layer, which Modal caches), so eval sets added to the
+    # product repo since the last run are protected from training too.
+    sh("git", "clone", "--depth", "1",
+       "https://github.com/Gauntlet-Hackathon/gauntletvshackathon", "/tmp/eval_repo")
     sh("python", "-m", "rescue_tagger.data.build", "--config", "configs/data.yaml")
     sh("python", "-m", "rescue_tagger.train", "--config", config, "--set",
        f"out_dir={out_dir}", *overrides)

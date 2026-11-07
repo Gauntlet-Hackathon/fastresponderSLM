@@ -51,7 +51,10 @@ def sampler_for(rows: list[dict[str, Any]], source_share: dict[str, float], n: i
     counts: dict[str, int] = {}
     for r in rows:
         counts[r["source"]] = counts.get(r["source"], 0) + 1
-    present = {s: source_share.get(s, 0.0) for s in counts}
+    missing = set(counts) - set(source_share)
+    if missing:
+        raise ValueError(f"source_share has no entry for {sorted(missing)}; set 0 to drop them")
+    present = {s: source_share[s] for s in counts}
     total = sum(present.values()) or 1.0
     weights = [present[r["source"]] / total / counts[r["source"]] for r in rows]
     return WeightedRandomSampler(weights, num_samples=n, replacement=True)
@@ -91,16 +94,21 @@ def compute_loss(out: dict[str, torch.Tensor], b: dict[str, torch.Tensor],
 
 
 @torch.no_grad()
-def dev_loss(model, loader, head_weights, device) -> float:
+def dev_loss(model, loader, head_weights, device) -> tuple[float, dict[str, float]]:
+    """Macro average over heads, so checkpoint choice is not decided by whichever head has the
+    most dev rows (is_request from Munro/HumAID); spans, hazards and location count equally."""
     model.eval()
-    tot, n = 0.0, 0
+    sums: dict[str, float] = {}
+    counts: dict[str, int] = {}
     for b in loader:
         b = {k: v.to(device) for k, v in b.items()}
-        loss, _ = compute_loss(model(b["input_ids"], b["attention_mask"]), b, head_weights)
-        tot += float(loss) * len(b["weight"])
-        n += len(b["weight"])
+        _, parts = compute_loss(model(b["input_ids"], b["attention_mask"]), b, head_weights)
+        for k, v in parts.items():
+            sums[k] = sums.get(k, 0.0) + v
+            counts[k] = counts.get(k, 0) + 1
     model.train()
-    return tot / max(n, 1)
+    per_head = {k: sums[k] / counts[k] for k in sums}
+    return sum(per_head.values()) / max(len(per_head), 1), per_head
 
 
 def train(cfg: dict[str, Any]) -> dict[str, Any]:
@@ -111,13 +119,15 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     data_dir, out_dir = Path(cfg["data_dir"]), Path(cfg["out_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    model, tok = RescueTagger.from_backbone(cfg["backbone"], dropout=cfg.get("dropout", 0.1),
+    model, tok = RescueTagger.from_backbone(cfg["backbone"], revision=cfg.get("backbone_revision"),
+                                            dropout=cfg.get("dropout", 0.1),
                                             max_length=cfg.get("max_length", 256))
     model.to(device)
     limit = cfg.get("limit_rows")
     train_rows = load_split(data_dir, "train", limit)
     dev_rows = load_split(data_dir, "dev", limit)
     enc = [encode(r, tok, model.cfg.max_length) for r in train_rows]
+    random.Random(seed).shuffle(dev_rows)  # mix sources within dev batches
     dev_enc = [encode(r, tok, model.cfg.max_length) for r in dev_rows]
     pad = tok.pad_token_id
 
@@ -161,8 +171,9 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
             if step % cfg.get("log_every", 50) == 0:
                 print(json.dumps({"step": step, "loss": round(float(loss), 4),
                                   **{k: round(v, 4) for k, v in parts.items()}}), flush=True)
-        dl = dev_loss(model, dev_loader, head_weights, device)
+        dl, per_head = dev_loss(model, dev_loader, head_weights, device)
         history.append({"epoch": epoch + 1, "step": step, "dev_loss": dl,
+                        "dev_per_head": {k: round(v, 4) for k, v in per_head.items()},
                         "minutes": round((time.time() - t0) / 60, 2)})
         print(json.dumps(history[-1]), flush=True)
         if dl < best:

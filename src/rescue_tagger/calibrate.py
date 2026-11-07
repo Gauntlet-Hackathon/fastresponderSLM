@@ -75,9 +75,14 @@ def collect(model: RescueTagger, tok, rows: list[dict[str, Any]], bs: int = 64):
             for k, v in acc.items()}
 
 
-def calibrate(model_dir: Path, data: Path) -> dict[str, Any]:
+DEFAULT_EXCLUDE = ("humaid",)  # weak labels: donation appeals count as "requests" there
+
+
+def calibrate(model_dir: Path, data: Path,
+              exclude_sources: tuple[str, ...] = DEFAULT_EXCLUDE) -> dict[str, Any]:
+    """Fit on dev rows from sources whose labels match the rubric (not weak-label sources)."""
     model, tok = RescueTagger.load(model_dir)
-    rows = [r for r in read_jsonl(data)]
+    rows = [r for r in read_jsonl(data) if r["source"] not in exclude_sources]
     if any(r["split"] == "test" for r in rows):
         raise RuntimeError("refusing to calibrate on test rows")
     d = collect(model, tok, rows)
@@ -92,8 +97,10 @@ def calibrate(model_dir: Path, data: Path) -> dict[str, Any]:
         temps[h] = fit_temperature(
             lambda t, z=logits, y=y: F.binary_cross_entropy_with_logits(z / t, y))
         p_before, p_after = torch.sigmoid(logits), torch.sigmoid(logits / temps[h])
-        conf_b, conf_a = torch.maximum(p_before, 1 - p_before), torch.maximum(p_after, 1 - p_after)
-        correct = (p_after >= 0.5).float() == y
+        # Reliability of the positive-class probability itself, per kind: the engine bands on
+        # p(hazard), so p = 0.7 must mean present about 70% of the time.
+        conf_b, conf_a = p_before, p_after
+        correct = y.bool()
         report[h] = {"T": temps[h], "n": int(m.sum()),
                      "ece_before": ece(conf_b.flatten(), correct.flatten())[0],
                      "ece_after": ece(conf_a.flatten(), correct.flatten())[0],
@@ -129,8 +136,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("model_dir", type=Path)
     ap.add_argument("--data", type=Path, default=Path("data/processed/dev.jsonl"))
+    ap.add_argument("--exclude-sources", nargs="*", default=list(DEFAULT_EXCLUDE))
     args = ap.parse_args(argv)
-    print(json.dumps(calibrate(args.model_dir, args.data), indent=2))
+    print(json.dumps(calibrate(args.model_dir, args.data, tuple(args.exclude_sources)), indent=2))
     return 0
 
 

@@ -1,5 +1,6 @@
 # Challenger: mmBERT-small (140M). python -m rescue_tagger.train --config configs/train_mmbert_small.yaml
 backbone: jhu-clsp/mmBERT-small
+backbone_revision: abc32620dd4f6ab06f5fbe905dc25f310618e09f   # pinned
 data_dir: data/processed
 out_dir: outputs/mmbert_small
 seed: 13

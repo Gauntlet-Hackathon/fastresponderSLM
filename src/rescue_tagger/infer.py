@@ -15,6 +15,7 @@ logits before the sigmoid/softmax.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +32,9 @@ DIGITS = 3
 
 
 def _r(x: float) -> float:
-    return round(float(x), DIGITS)
+    """Truncate (never round up) to DIGITS decimals, so 0.5996 stays below the engine's 0.6."""
+    scale = 10**DIGITS
+    return math.floor(float(x) * scale) / scale
 
 
 def decode_spans(text: str, offsets: list[tuple[int, int]], tag_ids: list[int],
@@ -56,10 +59,18 @@ def decode_spans(text: str, offsets: list[tuple[int, int]], tag_ids: list[int],
     out = []
     for sp in spans:
         s, e = sp["start"], sp["end"]
+        # Snap to whole words: a span never starts or ends inside a word ("West|heimer").
+        while s > 0 and text[s - 1].isalnum() and text[s].isalnum():
+            s -= 1
+        while e < len(text) and text[e - 1].isalnum() and text[e].isalnum():
+            e += 1
         while s < e and text[s].isspace():
             s += 1
         while e > s and text[e - 1].isspace():
             e -= 1
+        if out and out[-1]["label"] == sp["label"] and s <= out[-1]["end"]:
+            out[-1]["end"] = max(out[-1]["end"], e)  # snapped into the previous span: merge
+            continue
         if s < e:
             out.append({"start": s, "end": e, "label": sp["label"],
                         "confidence": sum(sp["probs"]) / len(sp["probs"])})
@@ -125,7 +136,7 @@ class Extractor:
                         "confidence": _r(p["location_type"]["none"])}
         else:
             location = {"text": text[loc_span["start"]:loc_span["end"]], "type": loc_type,
-                        "confidence": _r(p["location_type"][loc_type] * loc_span["confidence"])}
+                        "confidence": _r(p["location_type"][loc_type])}
 
         pc = p["people_count"]
         k = max(range(len(pc)), key=lambda i: pc[i])

@@ -41,9 +41,10 @@ def char_spans_to_bio(text: str, offsets: list[tuple[int, int]], spans: list[dic
 
 
 def count_class(people_count: int | None) -> int:
-    if people_count is None:
+    """Class 0 = no count stated (a stated "0 people" carries the same signal: nobody to count)."""
+    if not people_count:
         return 0
-    return max(1, min(people_count, MAX_COUNT))
+    return min(people_count, MAX_COUNT)
 
 
 def encode(rec: dict[str, Any], tokenizer, max_length: int) -> dict[str, Any]:
