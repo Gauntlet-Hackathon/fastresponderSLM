@@ -55,5 +55,5 @@ ID2TAG: dict[int, str] = dict(enumerate(BIO_TAGS))
 SOURCES: tuple[str, ...] = ("munro", "humaid", "synthetic", "product")
 # "mixed" is English mixed with Spanish or Vietnamese; "vi" comes from the product rows only.
 LANGS: tuple[str, ...] = ("en", "es", "mixed", "vi")
-SYNTH_LANGS: tuple[str, ...] = ("en", "es", "mixed")  # what the synthetic generator writes
+SYNTH_LANGS: tuple[str, ...] = ("en", "es", "mixed", "vi")  # what the synthetic generator writes
 SPLITS: tuple[str, ...] = ("train", "dev", "test")
