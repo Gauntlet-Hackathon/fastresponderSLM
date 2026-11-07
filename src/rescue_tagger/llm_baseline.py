@@ -239,15 +239,23 @@ def _items(raw: Any, kinds: tuple[str, ...]) -> list[dict[str, Any]]:
 
 
 def _needs(raw: Any) -> list[dict[str, Any]]:
+    """Accepts [{"kind"|"type"|"item"|"need": ..., "hours_without": h}], ["water"],
+    {"water": 48}, {"water": true} or {"water": {"needed": true, "hours_without": 48}}."""
     out: dict[str, float | None] = {}
     if isinstance(raw, dict):
-        raw = [{"kind": k, "hours_without": (v if isinstance(v, int | float)
-                                             and not isinstance(v, bool) else None)}
-               for k, v in raw.items() if v not in (False, None)]
+        raw = [{"kind": k, "hours_without": v.get("hours_without") if isinstance(v, dict) else v}
+               for k, v in raw.items() if v is not False and v is not None
+               and not (isinstance(v, dict) and v.get("needed") is False)]
     if not isinstance(raw, list):
         raw = []
     for it in raw:
-        kind, h = (it.get("kind"), it.get("hours_without")) if isinstance(it, dict) else (it, None)
+        if isinstance(it, dict):
+            if it.get("needed") is False:
+                continue
+            kind = next((it[k] for k in ("kind", "type", "item", "need") if it.get(k)), None)
+            h = it.get("hours_without")
+        else:
+            kind, h = it, None
         if kind in L.NEED_KINDS:
             h = float(h) if isinstance(h, int | float) and not isinstance(h, bool) \
                 and math.isfinite(h) and h >= 0 else None
@@ -446,6 +454,44 @@ def read_results(path: Path) -> dict[str, dict[str, Any]]:
     return {r["id"]: r for r in read_jsonl(path)}
 
 
+def args_multi_incomplete(ans: dict[str, Any], row: dict[str, Any]) -> bool:
+    """A multi-prompt request needs all three steps."""
+    return row.get("condition") == "multi" and bool(ans.get("is_request")) \
+        and len(row["raw_output"]) < 3
+
+
+def reconvert(path: Path) -> int:
+    """Re-parse stored raw outputs after a converter fix, so a parsing bug of ours is never
+    charged to the model. Chains merge their steps in order, as run_one does."""
+    text_of = {r["id"]: r["text"] for rows in load_sample().values() for r in rows}
+    rows = list(read_results(path).values())
+    changed = 0
+    for row in rows:
+        # Only rows that ran to the end: a transport error or refusal mid-chain stays as it is
+        # (retried or scored as a miss), never turned into a partial answer.
+        if not row.get("raw_output") or not (row["valid"] or str(row["error"]).startswith(
+                ("ValueError", "JSONDecodeError"))):
+            continue
+        text = text_of[row["id"]]  # a sample/result mismatch should crash, not score
+        try:
+            ans: dict[str, Any] = {}
+            for raw in row["raw_output"]:
+                ans.update(parse_json(raw))
+            if args_multi_incomplete(ans, row):
+                raise ValueError("chain stopped before its last step")
+            new = to_payload(ans, text)
+            row.update(valid=True, error=None)
+        except (ValueError, TypeError) as e:
+            new = None
+            row.update(valid=False, error=f"{type(e).__name__}: {e}"[:300])
+        changed += new != row.get("extracted")
+        row["extracted"] = new
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+                    encoding="utf-8")
+    print(f"{path}: {changed} of {len(rows)} payloads changed")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--condition", choices=CONDITIONS)
@@ -455,6 +501,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--make-sample", type=int, metavar="PER_STRATUM",
                     help="write evals/compare_sample.json and exit")
     ap.add_argument("--show-prompts", action="store_true")
+    ap.add_argument("--reconvert", action="store_true",
+                    help="re-run to_payload on the stored raw outputs (no API calls)")
     args = ap.parse_args(argv)
 
     if args.make_sample:
@@ -469,6 +517,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if not args.condition:
         ap.error("--condition is required")
+    if args.reconvert:
+        return reconvert(RESULTS / f"{args.condition}.jsonl")
 
     sets = load_sample()
     out_path = RESULTS / f"{args.condition}.jsonl"

@@ -166,3 +166,22 @@ def test_examples_carry_no_confidences():
         "location": {"text": None, "type": "none", "confidence": 1.0}}, "text": "fire, 2 of us"}]
     block = B.examples_block(shots, B.ALL_KEYS)
     assert "confidence\": " not in block and '"hazards": ["fire"]' in block
+
+
+def test_need_items_named_type_or_item_are_read():
+    pay = B.to_payload({"needs": [{"type": "food", "hours_without": 24},
+                                  {"item": "water", "hours_without": None}]}, "x")
+    assert pay["needs"] == [{"kind": "food", "hours_without": 24.0},
+                            {"kind": "water", "hours_without": None}]
+    pay = B.to_payload({"needs": {"meds": {"hours_without": 12}, "food": False}}, "x")
+    assert pay["needs"] == [{"kind": "meds", "hours_without": 12.0}]
+
+
+def test_needs_marked_not_needed_are_dropped():
+    pay = B.to_payload({"needs": {"food": {"needed": False, "hours_without": None},
+                                  "water": {"needed": True, "hours_without": 48}}}, "x")
+    assert pay["needs"] == [{"kind": "water", "hours_without": 48.0}]
+    pay = B.to_payload({"needs": [{"kind": None, "type": "food", "hours_without": None},
+                                  {"type": "meds", "needed": False}]}, "x")
+    assert pay["needs"] == [{"kind": "food", "hours_without": None}]
+    assert B._needs.__doc__
