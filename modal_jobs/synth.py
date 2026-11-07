@@ -44,6 +44,7 @@ hf_cache = modal.Volume.from_name("rescue-tagger-hf-cache", create_if_missing=Tr
 app = modal.App("rescue-synth", image=image)
 PORT = 8000
 MODES = {"focus": ["--focus"], "vague": ["--vague"], "hoax": ["--hoax"], "mix": ["--mix"],
+         "implied": ["--implied"],
          "plain": []}
 
 

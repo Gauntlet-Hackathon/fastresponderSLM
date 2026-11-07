@@ -14,12 +14,12 @@ on:
         description: "Specs to try"
         default: "30"
       seed:
-        description: "First seed (use a fresh range per batch: ids are model + seed; vague 320000+, v6 focus 330000+, hoax 340000+, mix 350000+)"
+        description: "First seed (use a fresh range per batch: ids are model + seed; vague 320000+, v6 focus 330000+, hoax 340000+, mix 350000+, implied 360000+)"
         default: "300000"
       mode:
-        description: "focus = under-covered categories; vague = too vague to call; hoax = may be a prank; mix = code-switching, old posts, third-party asks; plain = base mix"
+        description: "focus = under-covered categories; vague = too vague to call; hoax = may be a prank; mix = code-switching, old posts, third-party asks; implied = P1 hazards implied in messy typing; plain = base mix"
         type: choice
-        options: [focus, vague, hoax, mix, plain]
+        options: [focus, vague, hoax, mix, implied, plain]
         default: focus
       reverify:
         description: "Optional: an earlier batch name whose generations to re-check (no new text)"

@@ -53,6 +53,8 @@ select = ["E", "F", "I", "B", "UP", "W"]
 [tool.ruff.lint.per-file-ignores]
 # The edge-case list is data: one case per line reads better than wrapped calls.
 "evals/make_edge_cases.py" = ["E501", "E402", "I001", "E701", "E702"]
+# The safety-net word lists are data: long alternations read better unwrapped.
+"src/rescue_tagger/safety.py" = ["E501"]
 
 [tool.pytest.ini_options]
 addopts = "-m 'not slow'"

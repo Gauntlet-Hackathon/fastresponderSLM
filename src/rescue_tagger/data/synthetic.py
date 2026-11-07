@@ -105,6 +105,7 @@ class Spec:
     vague: bool = False             # too vague to call: is_request is a soft 0.5, never scored
     hoax: bool = False              # reads like a request but may be a prank: soft 0.5 as well
     third_party: bool = False       # written about someone else who is not with the writer
+    hazard_implied: bool = False    # hazards implied by the situation, never named
 
 
 # Powered medical devices (rubric: "a medical device that needs electricity").
@@ -249,6 +250,54 @@ def sample_mix_spec(seed: int) -> Spec:
     return spec
 
 
+# --implied (v9, b0011+): P1 hazards and vulnerable people the reader must infer, in messy typing.
+# The rubric's P1 kinds and its "implied counts" reading; categories only, never eval text.
+IMPLIED_HAZARDS = {
+    "trapped": "stuck in an attic, a car or truck stalled in a flooded underpass, doors blocked "
+               "by water, can't get out of the building",
+    "rising_water": "water at the door, the porch or the steps, up to the knees, the first floor "
+                    "filling up, moving everyone upstairs or into the attic",
+    "on_roof": "climbed out a window onto the shingles, sitting up on top of the house",
+    "injury": "a broken arm or leg, bleeding, fell and can't get up, hit their head",
+    "fire": "smells like smoke or burning, sparks from an outlet, possibly hedged "
+            "('maybe smoke??')",
+}
+MESSY = (
+    "typed fast on a phone: typos, missing letters, no punctuation, texting abbreviations",
+    "typed fast on a phone: all lowercase, run-on, one or two misspellings",
+    "hedged and unsure ('i think', 'maybe', 'not sure if'), but the situation is clear",
+    "very terse: an address and a few words, no full sentences",
+)
+
+
+def sample_implied_spec(seed: int) -> Spec:
+    """A request whose P1 hazards (and often vulnerable people) are implied by the situation, not
+    named, usually in messy typing (see --implied). Deterministic per seed."""
+    r = random.Random(f"implied:{seed}")
+    spec = sample_spec(seed)
+    spec.is_request, spec.non_request_type, spec.is_stale_post = True, None, False
+    spec.prompt_injection, spec.vague, spec.hoax = False, False, False
+    spec.request_kind = r.choices(["rescue", "evacuation", "welfare_check"],
+                                  weights=(65, 20, 15))[0]
+    combos = [["trapped", "rising_water"], ["rising_water"], ["trapped"],
+              ["on_roof", "rising_water"], ["injury"], ["injury", "trapped"], ["fire"],
+              ["rising_water", "injury"]]
+    pick = r.choices(combos, weights=(25, 15, 15, 10, 10, 8, 9, 8))[0]
+    spec.hazards = [h for h in L.HAZARD_KINDS if h in pick]
+    spec.device = None
+    if r.random() < 0.6:
+        spec.vulnerable = r.sample(["child", "elderly", "disabled", "pregnant", "medical"],
+                                   r.choice([1, 1, 2]))
+        spec.vulnerable_indirect = True
+    else:
+        spec.vulnerable, spec.vulnerable_indirect = [], False
+    spec.vulnerable = [v for v in L.VULNERABLE_KINDS if v in spec.vulnerable]
+    spec.hazard_implied = True
+    if r.random() < 0.75:
+        spec.style = f"{spec.style}; {r.choice(MESSY)}"
+    return spec
+
+
 def sample_spec(seed: int) -> Spec:
     """Deterministic: the same seed always gives the same spec."""
     r = random.Random(seed)
@@ -385,6 +434,12 @@ def build_prompt(spec: Spec) -> str:
                          "or 2017.")
     lines.append("Hazards to express (exactly these): "
                  + (", ".join(spec.hazards) if spec.hazards else "none"))
+    if spec.hazard_implied and spec.hazards:
+        ideas = "; ".join(f"{h}: {IMPLIED_HAZARDS[h]}" for h in spec.hazards)
+        lines.append("Express each hazard ONLY through the situation, never with the hazard word "
+                     "itself or a direct synonym (no 'trapped', 'rising water', 'injured', 'fire', "
+                     f"'roof' as a label). Ideas, do not copy: {ideas}. A careful dispatcher must "
+                     "still be able to tell each hazard is present.")
     if spec.device:
         lines.append(f"The medical device without power is {spec.device}; name or describe the "
                      "device and make clear the power is out. The person who depends on it "
@@ -696,10 +751,10 @@ def _call_json(client, model: str, system: str, user: str, schema: dict, name: s
 
 def generate_one(client, seed: int, gen_model: str, verify_model: str | None,
                  focus: bool = False, vague: bool = False, hoax: bool = False,
-                 mix: bool = False) -> dict[str, Any]:
+                 mix: bool = False, implied: bool = False) -> dict[str, Any]:
     """Returns {"record": ...} on success or {"seed", "error"} when the row is rejected."""
     spec = (sample_hoax_spec(seed) if hoax else sample_vague_spec(seed) if vague
-            else sample_mix_spec(seed) if mix
+            else sample_mix_spec(seed) if mix else sample_implied_spec(seed) if implied
             else sample_focus_spec(seed) if focus else sample_spec(seed))
     try:
         gen = _call_json(client, gen_model, GEN_SYSTEM, build_prompt(spec), GEN_SCHEMA, "message")
@@ -736,6 +791,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="requests that may be pranks (soft is_request 0.5; see sample_hoax_spec)")
     ap.add_argument("--mix", action="store_true",
                     help="code-switching, old posts and third-party asks (see sample_mix_spec)")
+    ap.add_argument("--implied", action="store_true",
+                    help="P1 hazards implied, not named, in messy typing (see sample_implied_spec)")
     ap.add_argument("--verify-file", type=Path, default=None,
                     help="only check the records in this file with --verify-model")
     args = ap.parse_args(argv)
@@ -753,7 +810,8 @@ def main(argv: list[str] | None = None) -> int:
             seeds = range(args.seed, args.seed + args.n)
             results = list(pool.map(
                 lambda s: generate_one(client, s, args.gen_model, args.verify_model or None,
-                                       args.focus, args.vague, args.hoax, args.mix), seeds))
+                                       args.focus, args.vague, args.hoax, args.mix,
+                                       args.implied), seeds))
     kept = [r["record"] for r in results if "record" in r]
     rejected = [r for r in results if "record" not in r]
     write_jsonl(args.out, kept)
