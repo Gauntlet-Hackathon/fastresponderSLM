@@ -188,7 +188,8 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     # real-text rows mostly don't (people count, location type), so their absolute loss is ~10x
     # larger and, unscaled, picked the very first checkpoint (laya-v4: step 750 of 3000, which
     # cost 0.03 real-text score).
-    product_w = cfg.get("checkpoint_product_weight", 0.0) if product_dev else 0.0
+    product_w = (cfg.get("checkpoint_product_weight", 0.0)
+                 if product_dev and len(product_dev) < len(dev_enc) else 0.0)
     first: dict[str, float] = {}
     eval_every = cfg.get("eval_every_steps") or steps_per_epoch
     patience = cfg.get("early_stop_patience", 2)  # dev checks without improvement before stopping
