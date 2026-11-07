@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -95,11 +96,12 @@ ALL_KEYS = TRIAGE_KEYS + RISK_KEYS + LOC_KEYS
 
 NAIVE = """Extract the info from this message as JSON.
 
-Fields: is_request, is_request_confidence, request_kind (rescue/evacuation/welfare_check/supply/\
-other), is_stale_post, time_text, hazards (rising_water/on_roof/injury/medical_device_no_power/\
-fire/trapped), vulnerable (child/elderly/disabled/medical/pregnant), needs (food/water/meds, with \
-hours_without), people_count, location_text, location_type (landmark/address/coords/none), \
-location_confidence.
+Fields: is_request, is_request_confidence (how sure you are, 0-1), request_kind \
+(rescue/evacuation/welfare_check/supply/other), is_stale_post, time_text, hazards \
+(rising_water/on_roof/injury/medical_device_no_power/fire/trapped), vulnerable \
+(child/elderly/disabled/medical/pregnant), needs (food/water/meds, with hours_without), \
+people_count, location_text, location_type (landmark/address/coords/none), location_confidence \
+(how sure you are, 0-1).
 
 Message: {text}"""
 
@@ -175,18 +177,19 @@ def few_shots(train: Path = Path("data/processed/train.jsonl"), k: int = 7) -> l
 
 
 def example_answer(rec: dict) -> dict[str, Any]:
+    """The labels only. Confidences are left out so the examples don't anchor them: every
+    example is a clear case, and a fixed 0.95 would teach "always sure"."""
     g = rec["gold_extracted"]
     hours = rec.get("need_hours") or {}
     return {
-        "is_request": g["is_request"]["value"], "is_request_confidence": 0.95,
+        "is_request": g["is_request"]["value"],
         "request_kind": g["request_kind"], "is_stale_post": g["time_ref"]["is_stale_post"],
         "time_text": g["time_ref"]["text"],
-        "hazards": [{"kind": h["kind"], "confidence": 0.95} for h in g["hazards"]],
-        "vulnerable": [{"kind": v["kind"], "confidence": 0.95} for v in g["vulnerable"]],
+        "hazards": [h["kind"] for h in g["hazards"]],
+        "vulnerable": [v["kind"] for v in g["vulnerable"]],
         "needs": [{"kind": n["kind"], "hours_without": hours.get(n["kind"])} for n in g["needs"]],
-        "people_count": g["people_count"]["value"], "people_count_confidence": 0.95,
+        "people_count": g["people_count"]["value"],
         "location_text": g["location"]["text"], "location_type": g["location"]["type"],
-        "location_confidence": 0.95,
     }
 
 
@@ -195,7 +198,8 @@ def examples_block(shots: list[dict], keys: list[str]) -> str:
     for r in shots:
         ans = {k: v for k, v in example_answer(r).items() if k in keys}
         parts.append(f"Message: {r['text']}\nAnswer: {json.dumps(ans, ensure_ascii=False)}")
-    return "Examples:\n\n" + "\n\n".join(parts)
+    return ("Examples (labels only; in your answer add every confidence field and give each "
+            "hazard and vulnerable kind its own confidence):\n\n" + "\n\n".join(parts))
 
 
 def structured_system(shots: list[dict]) -> str:
@@ -216,7 +220,7 @@ def _conf(x: Any, default: float = 0.9) -> float:
         v = float(x)
     except (TypeError, ValueError):
         return default
-    return min(max(v, 0.0), 1.0)
+    return min(max(v, 0.0), 1.0) if math.isfinite(v) else default
 
 
 def _items(raw: Any, kinds: tuple[str, ...]) -> list[dict[str, Any]]:
@@ -224,7 +228,9 @@ def _items(raw: Any, kinds: tuple[str, ...]) -> list[dict[str, Any]]:
     out: dict[str, float] = {}
     if isinstance(raw, dict):
         raw = [k for k, v in raw.items() if v]
-    for it in raw or []:
+    if not isinstance(raw, list):  # true, 5, "fire": not a usable list
+        raw = []
+    for it in raw:
         kind, c = (it.get("kind") or it.get("type"), it.get("confidence")) if isinstance(
             it, dict) else (it, None)
         if isinstance(kind, str) and kind in kinds:
@@ -238,11 +244,13 @@ def _needs(raw: Any) -> list[dict[str, Any]]:
         raw = [{"kind": k, "hours_without": (v if isinstance(v, int | float)
                                              and not isinstance(v, bool) else None)}
                for k, v in raw.items() if v not in (False, None)]
-    for it in raw or []:
+    if not isinstance(raw, list):
+        raw = []
+    for it in raw:
         kind, h = (it.get("kind"), it.get("hours_without")) if isinstance(it, dict) else (it, None)
         if kind in L.NEED_KINDS:
-            h = float(h) if isinstance(h, int | float) and not isinstance(h, bool) and h >= 0 \
-                else None
+            h = float(h) if isinstance(h, int | float) and not isinstance(h, bool) \
+                and math.isfinite(h) and h >= 0 else None
             out[kind] = h if out.get(kind) is None else max(out[kind] or 0, h or 0)
     return [{"kind": k, "hours_without": v} for k, v in out.items()]
 
@@ -350,9 +358,19 @@ def add_usage(a: dict[str, int], b: dict[str, int]) -> dict[str, int]:
     return {k: a.get(k, 0) + b.get(k, 0) for k in set(a) | set(b)}
 
 
-def run_one(opus: Opus, condition: str, text: str, prompts: dict[str, str]) -> dict[str, Any]:
-    usage: dict[str, int] = {}
-    raws: list[str] = []
+def run_one(opus: Opus, condition: str, text: str, prompts: dict[str, str],
+            spent: dict[str, Any] | None = None) -> dict[str, Any]:
+    """`spent` collects raw outputs and usage as calls finish, so a chain that fails midway
+    still records what it cost."""
+    spent = spent if spent is not None else {}
+    usage: dict[str, int] = spent.setdefault("usage", {})
+    raws: list[str] = spent.setdefault("raw_output", [])
+
+    def add_usage(_a: dict[str, int], b: dict[str, int]) -> dict[str, int]:
+        for k, v in b.items():
+            usage[k] = usage.get(k, 0) + v
+        return usage
+
     if condition == "naive":
         raw, u = opus.call(NAIVE.format(text=text))
         raws.append(raw)
@@ -418,7 +436,7 @@ def load_sample(processed: Path = Path("data/processed")) -> dict[str, list[dict
 
 
 # Bad output is the model's miss and stays; transport errors are retried on the next run.
-SCORED_ERRORS = ("ValueError", "JSONDecodeError", "ValidationError", "RuntimeError: refusal")
+SCORED_ERRORS = ("ValueError", "JSONDecodeError", "RuntimeError: refusal")
 
 
 def read_results(path: Path) -> dict[str, dict[str, Any]]:
@@ -467,14 +485,14 @@ def main(argv: list[str] | None = None) -> int:
         t0 = time.perf_counter()
         row: dict[str, Any] = {"id": rec["id"], "set": name, "condition": args.condition,
                                "model_id": MODEL, "effort": EFFORT}
+        spent: dict[str, Any] = {}
         try:
-            res = run_one(opus, args.condition, rec["text"], prompts)
-            row.update(raw_output=res["raw_output"], usage=res["usage"])
+            res = run_one(opus, args.condition, rec["text"], prompts, spent)
             row["extracted"] = to_payload(res["answer"], rec["text"])
             row["valid"], row["error"] = True, None
         except Exception as e:  # noqa: BLE001 - every failure is a counted, scored miss
             row.update(extracted=None, valid=False, error=f"{type(e).__name__}: {e}"[:300])
-            row.setdefault("usage", {})
+        row["raw_output"], row["usage"] = spent.get("raw_output", []), spent.get("usage", {})
         row["latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
         with lock, out_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")

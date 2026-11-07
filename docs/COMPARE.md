@@ -43,6 +43,13 @@ in `src/rescue_tagger/llm_baseline.py`; `--show-prompts` prints them.
   dropped no training rows.
 - Known bias: the edge cases, the second labels and the Opus prompts were all written by Claude
   models, the same family as the baseline. Training data comes from OpenAI models only.
+- A missing or failed Opus output scores as wrong on every field it would have been graded on
+  (and confident), so failures never earn credit for "not a request" or "unsure". A condition is
+  scored only when it covers every row; the table shows coverage and the failure count.
+- The worked examples carry labels only, no confidences, so they don't teach "always 95% sure".
+- Opus latency is wall-clock per message and includes any rate-limit backoff (8 parallel
+  workers); ours is single-message CPU latency.
+- The four vague edge cases are under 8 words, so the leak check protects them by exact match only.
 - Harvey and HumAID test use HumAID's label scheme, where donation appeals count as requests. Our
   rubric (and so the Opus prompt) says they are not, so Opus is penalized there for following the
   rubric. Read those rows next to the edge rows, which use the rubric.

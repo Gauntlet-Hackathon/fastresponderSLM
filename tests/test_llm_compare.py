@@ -139,3 +139,30 @@ def test_edge_categories_cover_the_judge_challenge():
     assert {"ambiguous", "not_request", "prompt_injection", "medical_device",
             "multi_need_duration", "stale"} <= cats
     assert all(k in L.NEED_KINDS for r in EDGE for k in (r.get("need_hours") or {}))
+
+
+def test_a_missing_output_earns_no_credit():
+    ex = Stored({}, EDGE)
+    rep = edge_report(ex, EDGE)
+    assert rep["edge_pass_rate"] == 0.0 and rep["edge_flags_unsure"] == 0.0
+
+
+def test_odd_shapes_and_nan_do_not_crash_or_leak():
+    pay = B.to_payload({"is_request": True, "hazards": True, "vulnerable": 5, "needs": "water",
+                        "is_request_confidence": float("nan"),
+                        "location_confidence": float("inf")}, "help")
+    assert pay["hazards"] == [] and pay["vulnerable"] == [] and pay["needs"] == []
+    assert pay["is_request"]["confidence"] == 0.9 and pay["location"]["confidence"] == 0.9
+    pay = B.to_payload({"needs": [{"kind": "water", "hours_without": float("inf")}]}, "x")
+    assert pay["needs"] == [{"kind": "water", "hours_without": None}]
+
+
+def test_examples_carry_no_confidences():
+    shots = [{"gold_extracted": {
+        "is_request": {"value": True, "confidence": 1.0}, "request_kind": "rescue",
+        "time_ref": {"text": None, "is_stale_post": False, "confidence": 1.0},
+        "hazards": [{"kind": "fire", "confidence": 1.0}], "vulnerable": [], "needs": [],
+        "people_count": {"value": 2, "confidence": 1.0},
+        "location": {"text": None, "type": "none", "confidence": 1.0}}, "text": "fire, 2 of us"}]
+    block = B.examples_block(shots, B.ALL_KEYS)
+    assert "confidence\": " not in block and '"hazards": ["fire"]' in block

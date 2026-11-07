@@ -27,8 +27,8 @@ from rescue_tagger.llm_baseline import (
     CONDITIONS,
     RESULTS,
     SAMPLE_FILE,
-    empty_payload,
     read_results,
+    to_payload,
 )
 from rescue_tagger.records import read_jsonl
 
@@ -38,14 +38,41 @@ PRICE = {"input_tokens": 4.0, "output_tokens": 20.0, "cache_read_input_tokens": 
 UNSURE = 0.75  # an is_request confidence below this counts as "flagged as unsure"
 
 
-class Stored:
-    """Looks like an Extractor; returns pre-computed payloads by text."""
+def wrong_payload(rec: dict[str, Any]) -> dict[str, Any]:
+    """What a missing or failed output scores as: wrong on every labeled field, and confident,
+    so a failure never earns credit for "not a request" or "unsure"."""
+    lab = rec["labels"]
+    gold_kind = lab.get("request_kind")
+    gold_loc = lab.get("location_type")
+    pc = rec.get("people_count")
+    flip = {head: [k for k, v in lab[head].items() if not v] for head in L.MULTI_LABEL_HEADS
+            if head in lab}
+    return to_payload({
+        "is_request": not lab.get("is_request", False), "is_request_confidence": 1.0,
+        "request_kind": next(k for k in L.REQUEST_KINDS if k != gold_kind),
+        "is_stale_post": not lab.get("is_stale_post", False),
+        "location_type": next(k for k in L.LOCATION_TYPES if k not in (gold_loc, "none")),
+        "location_text": "?", "location_confidence": 1.0,
+        "people_count": (pc or 0) + 1, "people_count_confidence": 1.0,
+        "hazards": [{"kind": k, "confidence": 1.0} for k in flip.get("hazards", [])],
+        "vulnerable": [{"kind": k, "confidence": 1.0} for k in flip.get("vulnerable", [])],
+        "needs": [{"kind": k, "hours_without": None} for k in flip.get("needs", [])],
+    }, rec["text"])
 
-    def __init__(self, by_text: dict[str, dict[str, Any]]) -> None:
-        self.by_text = by_text
+
+class Stored:
+    """Looks like an Extractor; returns pre-computed payloads by text (texts are unique across
+    the comparison rows). Rows with no usable output get wrong_payload()."""
+
+    def __init__(self, by_text: dict[str, dict[str, Any]],
+                 rows: list[dict[str, Any]] | None = None) -> None:
+        self.by_text = dict(by_text)
+        for r in rows or []:
+            if not self.by_text.get(r["text"]):
+                self.by_text[r["text"]] = wrong_payload(r)
 
     def extract(self, text: str) -> dict[str, Any]:
-        return self.by_text.get(text) or empty_payload()
+        return self.by_text[text]
 
 
 def load_sets(processed: Path) -> dict[str, list[dict[str, Any]]]:
@@ -118,11 +145,17 @@ def edge_report(ex: Any, rows: list[dict[str, Any]]) -> dict[str, Any]:
             "edge_by_category": {c: f"{sum(v)}/{len(v)}" for c, v in sorted(by_cat.items())}}
 
 
-def llm_systems(rows_by_set: dict[str, list[dict[str, Any]]]) -> dict[str, dict[str, Any]]:
+def llm_systems(rows_by_set: dict[str, list[dict[str, Any]]],
+                allow_partial: bool = False) -> dict[str, dict[str, Any]]:
     text_of = {r["id"]: r["text"] for rows in rows_by_set.values() for r in rows}
     out = {}
     for cond in CONDITIONS:
         res = read_results(RESULTS / f"{cond}.jsonl")
+        missing = set(text_of) - set(res)
+        if missing and not allow_partial:
+            raise SystemExit(f"results/llm/{cond}.jsonl covers {len(text_of) - len(missing)} of "
+                             f"{len(text_of)} comparison rows; finish the run or pass "
+                             "--allow-partial (missing rows then score as wrong)")
         if not res:
             continue
         by_text = {text_of[i]: r["extracted"] for i, r in res.items()
@@ -135,7 +168,8 @@ def llm_systems(rows_by_set: dict[str, list[dict[str, Any]]]) -> dict[str, dict[
         n = len(res)
         out[f"opus_{cond}"] = {
             "ex": Stored(by_text),
-            "meta": {"rows_run": n, "invalid_or_failed": sum(not r["valid"] for r in res.values()),
+            "meta": {"coverage": f"{len(text_of) - len(missing)}/{len(text_of)}",
+                     "invalid_or_failed": sum(not r["valid"] for r in res.values()),
                      "latency_median_ms": round(statistics.median(
                          r["latency_ms"] for r in res.values()), 1),
                      "usd_per_1000": round(1000 * cost / max(n, 1), 2),
@@ -144,9 +178,9 @@ def llm_systems(rows_by_set: dict[str, list[dict[str, Any]]]) -> dict[str, dict[
     return out
 
 
-def run(slm: Path | None, processed: Path) -> dict[str, Any]:
+def run(slm: Path | None, processed: Path, allow_partial: bool = False) -> dict[str, Any]:
     sets = load_sets(processed)
-    systems = llm_systems(sets)
+    systems = llm_systems(sets, allow_partial)
     if slm is not None:
         from rescue_tagger.infer import Extractor
 
@@ -154,14 +188,15 @@ def run(slm: Path | None, processed: Path) -> dict[str, Any]:
         by_text = {r["text"]: ex.extract(r["text"]) for rows in sets.values() for r in rows}
         lat = evaluate(ex, sets["edge"], repeats=10, consistency_n=20)
         systems = {"ours": {"ex": Stored(by_text), "meta": {
+            "coverage": f"{len(by_text)}/{len(by_text)}", "invalid_or_failed": 0,
             "latency_median_ms": lat["latency_median_ms"],
             "consistency_changed_pct": lat["consistency_changed_pct"],
             "usd_per_1000": 0.0, "works_offline": True, "model": str(slm)}}, **systems}
     report: dict[str, Any] = {"sets": {k: len(v) for k, v in sets.items()}, "systems": {}}
     for name, sysd in systems.items():
-        ex = sysd["ex"]
         rep: dict[str, Any] = {"meta": sysd["meta"]}
         for set_name, rows in sets.items():
+            ex = Stored(sysd["ex"].by_text, rows)
             if set_name == "edge":
                 rep[set_name] = {**edge_report(ex, rows),
                                  **{k: v for k, v in evaluate(ex, rows, consistency_n=0).items()
@@ -181,6 +216,7 @@ ROWS = [("test", "request_f1"), ("test", "request_recall"), ("test", "request_pr
         ("harvey_rubric", "request_f1"), ("edge", "edge_pass_rate"),
         ("edge", "edge_flags_unsure"), ("edge", "hazards_f1"), ("edge", "vulnerable_f1"),
         ("edge", "needs_f1"), ("edge", "location_type_accuracy"), ("edge", "location_partial"),
+        ("meta", "coverage"), ("meta", "invalid_or_failed"),
         ("meta", "latency_median_ms"), ("meta", "usd_per_1000"), ("meta", "works_offline")]
 
 
@@ -207,8 +243,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--slm", type=Path, default=None, help="our checkpoint dir (best/)")
     ap.add_argument("--processed", type=Path, default=Path("data/processed"))
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--allow-partial", action="store_true",
+                    help="score incomplete Opus runs (missing rows count as wrong)")
     args = ap.parse_args(argv)
-    report = run(args.slm, args.processed)
+    report = run(args.slm, args.processed, args.allow_partial)
     md = markdown(report)
     print(md)
     if args.out:

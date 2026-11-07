@@ -231,10 +231,11 @@ def compare_run(run: str) -> str:
     sh("git", "clone", "--depth", "1",
        "https://github.com/Gauntlet-Hackathon/gauntletvshackathon", "/tmp/eval_repo")
     sh("python", "-m", "rescue_tagger.data.build", "--config", "configs/data.yaml")
+    for name in ("test", "test_rubric", "harvey", "harvey_rubric"):  # logged before reading
+        log_eval_read(Path("/runs/eval_reads.jsonl"), f"compare:{run}", name)
+    runs.commit()
     sh("python", "-m", "rescue_tagger.compare", "--slm", f"/runs/{run}/best",
        "--out", f"/runs/{run}/compare.json")
-    for name in ("test", "harvey"):
-        log_eval_read(Path("/runs/eval_reads.jsonl"), f"compare:{run}", name)
     runs.commit()
     return Path(f"/runs/{run}/compare.md").read_text()
 
