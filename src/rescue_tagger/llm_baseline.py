@@ -240,14 +240,19 @@ def _items(raw: Any, kinds: tuple[str, ...]) -> list[dict[str, Any]]:
 
 def _needs(raw: Any) -> list[dict[str, Any]]:
     out: dict[str, float | None] = {}
+    """Accepts [{"kind"|"type"|"item"|"need": ..., "hours_without": h}], ["water"],
+    {"water": 48}, {"water": true} or {"water": {"hours_without": 48}}."""
     if isinstance(raw, dict):
-        raw = [{"kind": k, "hours_without": (v if isinstance(v, int | float)
-                                             and not isinstance(v, bool) else None)}
-               for k, v in raw.items() if v not in (False, None)]
+        raw = [{"kind": k, "hours_without": v.get("hours_without") if isinstance(v, dict) else v}
+               for k, v in raw.items() if v is not False and v is not None]
     if not isinstance(raw, list):
         raw = []
     for it in raw:
-        kind, h = (it.get("kind"), it.get("hours_without")) if isinstance(it, dict) else (it, None)
+        if isinstance(it, dict):
+            kind = next((it[k] for k in ("kind", "type", "item", "need") if k in it), None)
+            h = it.get("hours_without")
+        else:
+            kind, h = it, None
         if kind in L.NEED_KINDS:
             h = float(h) if isinstance(h, int | float) and not isinstance(h, bool) \
                 and math.isfinite(h) and h >= 0 else None
@@ -446,6 +451,32 @@ def read_results(path: Path) -> dict[str, dict[str, Any]]:
     return {r["id"]: r for r in read_jsonl(path)}
 
 
+def reconvert(path: Path) -> int:
+    """Re-parse stored raw outputs after a converter fix, so a parsing bug of ours is never
+    charged to the model. Chains merge their steps in order, as run_one does."""
+    text_of = {r["id"]: r["text"] for rows in load_sample().values() for r in rows}
+    rows = list(read_results(path).values())
+    changed = 0
+    for row in rows:
+        if not row.get("raw_output"):
+            continue
+        try:
+            ans: dict[str, Any] = {}
+            for raw in row["raw_output"]:
+                ans.update(parse_json(raw))
+            new = to_payload(ans, text_of[row["id"]])
+            row.update(valid=True, error=None)
+        except (ValueError, KeyError) as e:
+            new = None
+            row.update(valid=False, error=f"{type(e).__name__}: {e}"[:300])
+        changed += new != row.get("extracted")
+        row["extracted"] = new
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+                    encoding="utf-8")
+    print(f"{path}: {changed} of {len(rows)} payloads changed")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--condition", choices=CONDITIONS)
@@ -455,6 +486,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--make-sample", type=int, metavar="PER_STRATUM",
                     help="write evals/compare_sample.json and exit")
     ap.add_argument("--show-prompts", action="store_true")
+    ap.add_argument("--reconvert", action="store_true",
+                    help="re-run to_payload on the stored raw outputs (no API calls)")
     args = ap.parse_args(argv)
 
     if args.make_sample:
@@ -469,6 +502,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if not args.condition:
         ap.error("--condition is required")
+    if args.reconvert:
+        return reconvert(RESULTS / f"{args.condition}.jsonl")
 
     sets = load_sample()
     out_path = RESULTS / f"{args.condition}.jsonl"

@@ -166,3 +166,12 @@ def test_examples_carry_no_confidences():
         "location": {"text": None, "type": "none", "confidence": 1.0}}, "text": "fire, 2 of us"}]
     block = B.examples_block(shots, B.ALL_KEYS)
     assert "confidence\": " not in block and '"hazards": ["fire"]' in block
+
+
+def test_need_items_named_type_or_item_are_read():
+    pay = B.to_payload({"needs": [{"type": "food", "hours_without": 24},
+                                  {"item": "water", "hours_without": None}]}, "x")
+    assert pay["needs"] == [{"kind": "food", "hours_without": 24.0},
+                            {"kind": "water", "hours_without": None}]
+    pay = B.to_payload({"needs": {"meds": {"hours_without": 12}, "food": False}}, "x")
+    assert pay["needs"] == [{"kind": "meds", "hours_without": 12.0}]
