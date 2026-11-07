@@ -16,14 +16,15 @@ items:
   - {name: laya-seed7, config: configs/train_laya.yaml, purpose: seed, overrides: {seed: 7}}
   - {name: laya-seed21, config: configs/train_laya.yaml, purpose: seed, overrides: {seed: 21}}
   - {name: mmbert-s13, config: configs/train_mmbert_small.yaml, purpose: baseline}
+  # Source mix first: 1,454 synthetic rows at a 0.5 share are seen ~16x per epoch, and dev loss
+  # on synthetic rises after step 1500 (memorization). Less synthetic, more real text.
+  - name: laya-synth0.35
+    config: configs/train_laya.yaml
+    overrides: {source_share: {synthetic: 0.35, munro: 0.4, humaid: 0.25}}
   # Training settings, one at a time (Laya is the primary model).
   - {name: laya-lr2e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 2.0e-5}}
   - {name: laya-lr5e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 5.0e-5}}
   - {name: laya-dropout0.2, config: configs/train_laya.yaml, overrides: {dropout: 0.2}}
   - {name: laya-epochs6, config: configs/train_laya.yaml, overrides: {epochs: 6}}
-  # Source mix: less synthetic, more real text.
-  - name: laya-synth0.35
-    config: configs/train_laya.yaml
-    overrides: {source_share: {synthetic: 0.35, munro: 0.4, humaid: 0.25}}
   - {name: mmbert-seed7, config: configs/train_mmbert_small.yaml, purpose: seed,
      overrides: {seed: 7}}
