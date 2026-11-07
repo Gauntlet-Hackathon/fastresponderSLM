@@ -330,9 +330,9 @@ def test_v2_seed_noise_carries_over_to_v3(tmp_path):
     v4 = _result("d", real=0.82)
     v4["config"]["data_version"] = 4   # v4 also only added synthetic rows
     assert seed_spread(summarize(v4), tmp_path) is not None
-    v9 = _result("e", real=0.82)
-    v9["config"]["data_version"] = 9   # not declared same: no carry-over
-    assert seed_spread(summarize(v9), tmp_path) is None
+    v10 = _result("e", real=0.82)
+    v10["config"]["data_version"] = 10   # not declared same: no carry-over
+    assert seed_spread(summarize(v10), tmp_path) is None
 
 
 def test_latency_and_consistency_use_the_timing_extractor():

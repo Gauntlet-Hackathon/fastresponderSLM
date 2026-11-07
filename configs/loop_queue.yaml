@@ -3,10 +3,10 @@
 # warmup, source shares (synthetic at most 0.5), category sampling via new synthetic batches.
 # Never: choosing by test score, training on eval misses, continuing from earlier weights.
 night: "2026-11-07b"         # restarted after the request-label fix (docs/DATA.md)
-max_runs: 22         # trained runs; re-scoring an existing model does not count
+max_runs: 24         # trained runs; re-scoring an existing model does not count
 max_rejections: 4    # rejected runs in a row before stopping (seed repeats excluded); 4 so a
                      # rejected dropout0.2 + epochs6 + lr4e-5 still lets lr7e-5 run
-max_parallel: 2      # Paawan 20:27: run the v8 variants side by side (each is judged against the champion at its finish)
+max_parallel: 3      # Paawan 20:27/20:36: v8 variants and v9 side by side (each judged against the champion at its finish)
 seed_parallel: 1     # plus one seed repeat beside it (never promoted, so no one is judged against it)
 launch_cutoff_utc: "10:30"   # no new launches until the morning test-set check has run
 resume_utc: "14:15"         # morning check done at 13:53; Paawan asked to restart at 14:14
@@ -62,6 +62,14 @@ items:
   - {name: laya-v8-syn35, config: configs/train_laya.yaml,
      overrides: {lr_encoder: 5.0e-5,
                  source_share: {synthetic: 0.35, munro: 0.38, humaid: 0.25, product: 0.02}}}
+  # Data v9: + b0011, 311 rows whose P1 hazards are implied by the situation, not named (attic,
+  # stalled car in an underpass, water at the door), mostly in messy typing; a missed hazard or
+  # vulnerable person costs 3x a false alarm in the loss (rubric: never drop a P1). A seed repeat
+  # beside it gives a second set of weights for the soup.
+  - {name: laya-v9, config: configs/train_laya.yaml, purpose: baseline,
+     overrides: {lr_encoder: 5.0e-5, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
+  - {name: laya-v9-seed7, config: configs/train_laya.yaml, purpose: seed,
+     overrides: {lr_encoder: 5.0e-5, seed: 7, positive_weight: {hazards: 3.0, vulnerable: 3.0}}}
   # lr 5e-5 won by more than the seed spread measured at 3e-5, on one seed: repeat it at the new
   # setting before trusting it, then bracket it.
   - {name: laya-lr5e-5-seed7, config: configs/train_laya.yaml, purpose: seed,

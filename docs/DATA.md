@@ -141,6 +141,20 @@ more disputed fields rejects the row. Masking can lose labels but never adds a w
 - Third-party asks keep the request kind they were written for (rescue, evacuation, welfare
   check, supply); where the verifier read it differently the field is masked.
 
+## Data v9 (implied hazards, messy typing)
+
+- **b0011-implied-gemma** (`--implied`, seeds 360000+): requests whose P1 hazards are implied by
+  the situation and never named (an attic, a stalled car in a flooded underpass, water at the
+  door, smoke or sparks, a fall), 75% in messy typing (typos, no punctuation, terse, hedged);
+  60% also describe a vulnerable person indirectly ("she's 82", "my son"). Written from the
+  rubric's P1 kinds, not from any evaluation row.
+- 311 of 600 kept (222 rejected by the blind verifier, 67 parse errors). 154 English, 61
+  Spanish, 49 mixed, 47 Vietnamese. The verifier disagreed on the hazards of 197 kept rows, so
+  their hazards are masked; 114 rows carry hazard labels (rising water 85, fire 23, on roof 11,
+  trapped 11, injury 9).
+- Training for v9 also weights a present hazard or vulnerable kind 3x in the loss
+  (`positive_weight`).
+
 ## Known gaps
 
 - Public data is English only. Spanish and mixed text come from synthetic data alone.
