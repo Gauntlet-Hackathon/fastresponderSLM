@@ -115,9 +115,30 @@ def load_model(spec: str):
     return Extractor.load(spec, model_version=spec)
 
 
+def stored_extract(path: Path, rows: list[dict[str, Any]]) -> Callable[[str], dict[str, Any]]:
+    """Stored LLM outputs (results/llm/<condition>.jsonl) as an extractor. A missing or failed
+    output scores as compare.wrong_payload: wrong on every labelled field, and confident. Every
+    row must be covered, so a run on the wrong split fails instead of scoring fallbacks."""
+    from rescue_tagger.compare import wrong_payload
+
+    stored = {r["id"]: r for r in read_jsonl(path) if r.get("set") == "product"}
+    by_text: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        rec = to_record(row)
+        if rec["id"] not in stored:
+            raise SystemExit(f"{path} has no output for {rec['id']}; run llm_baseline --sets "
+                             "product first (dev rows only)")
+        r = stored[rec["id"]]
+        by_text[row["raw_text"]] = (r["extracted"] if r.get("valid") and r.get("extracted")
+                                    else wrong_payload(rec))
+    return by_text.__getitem__
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    ap.add_argument("--model", action="append", required=True,
+    ap.add_argument("--llm", action="append", default=[],
+                    help="stored LLM outputs (results/llm/<condition>.jsonl); repeatable")
+    ap.add_argument("--model", action="append", default=[],
                     help="model dir or hf:<repo>@<sha>; repeat to score several")
     ap.add_argument("--data", type=Path, default=Path("data/product/rescue_eval_train_dev.jsonl"))
     ap.add_argument("--split", default="dev", choices=["dev", "train"])
@@ -125,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     rows = [r for r in read_jsonl(args.data) if r["split"] == args.split]
     res = {m: report(rows, load_model(m).extract) for m in args.model}
+    res.update({f"llm:{p}": report(rows, stored_extract(Path(p), rows)) for p in args.llm})
     text = json.dumps(res, indent=2)
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)

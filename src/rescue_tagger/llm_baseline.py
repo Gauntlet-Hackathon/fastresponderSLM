@@ -441,8 +441,14 @@ def load_sample(processed: Path = Path("data/processed")) -> dict[str, list[dict
         want = set(ids[name])
         out[name] = [r for r in read_jsonl(processed / fname) if r["id"] in want]
     out["edge"] = list(read_jsonl(Path("evals/edge_cases.jsonl")))
+    # Product team's dev rows (sets B, C, D), scored by rescue_tagger.product_eval --llm.
+    if PRODUCT_FILE.exists():
+        out["product"] = [{"id": f"product:{r['id']}", "text": r["raw_text"]}
+                          for r in read_jsonl(PRODUCT_FILE) if r["split"] == "dev"]
     return out
 
+
+PRODUCT_FILE = Path("data/product/rescue_eval_train_dev.jsonl")
 
 # Bad output is the model's miss and stays; transport errors are retried on the next run.
 SCORED_ERRORS = ("ValueError", "JSONDecodeError", "RuntimeError: refusal")

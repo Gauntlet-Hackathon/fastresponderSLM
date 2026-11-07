@@ -156,6 +156,7 @@ def llm_systems(rows_by_set: dict[str, list[dict[str, Any]]],
             raise SystemExit(f"results/llm/{cond}.jsonl covers {len(text_of) - len(missing)} of "
                              f"{len(text_of)} comparison rows; finish the run or pass "
                              "--allow-partial (missing rows then score as wrong)")
+        res = {i: r for i, r in res.items() if i in text_of}  # other sets (product) excluded
         if not res:
             continue
         by_text = {text_of[i]: r["extracted"] for i, r in res.items()

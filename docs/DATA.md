@@ -102,6 +102,15 @@ more disputed fields rejects the row. Masking can lose labels but never adds a w
   b0006 was generated before that rule, so its texts are re-checked under it and land in a later
   data version (synthetic only, so real-text dev stays the same as v4).
 
+## Data v5 (re-checked vague messages)
+
+- **b0007-vague-gemma-rv:** b0006's 300 Gemma texts re-checked blind by Phi-4 under the
+  cannot-tell rule. 146 kept (81 English, 49 Spanish, 16 mixed), 154 rejected because the
+  verifier read them as clearly needing help or clearly not. Every kept row has soft
+  `is_request` 0.5; 32 have location type none (no usable place), 85 an address or landmark
+  (a bare place with no ask), and 29 a location type the verifier disputed (masked).
+- Synthetic only, so real-text dev is the same as v4 and laya-v5 must hold v4's real-text score.
+
 ## Known gaps
 
 - Public data is English only. Spanish and mixed text come from synthetic data alone.
