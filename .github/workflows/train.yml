@@ -1,0 +1,52 @@
+name: train
+
+# Manual GPU training on Modal. Needs repo secrets MODAL_TOKEN_ID, MODAL_TOKEN_SECRET, HF_TOKEN.
+on:
+  workflow_dispatch:
+    inputs:
+      config:
+        description: "Training config"
+        required: true
+        default: configs/train_laya.yaml
+        type: choice
+        options: [configs/train_laya.yaml, configs/train_mmbert_small.yaml]
+      publish:
+        description: "Publish the trained model to the Hugging Face Hub"
+        type: boolean
+        default: false
+      overrides:
+        description: "Space-separated config overrides, e.g. 'epochs=1 steps_per_epoch=200'"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install modal pyyaml
+      - name: Train on Modal
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          CONFIG: ${{ inputs.config }}
+          OVERRIDES: ${{ inputs.overrides }}
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          set -o pipefail
+          PUBLISH_FLAG=""
+          if [ "$PUBLISH" = "true" ]; then PUBLISH_FLAG="--publish"; fi
+          modal run modal_jobs/train.py --config "$CONFIG" --overrides "$OVERRIDES" $PUBLISH_FLAG \
+            | tee result.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: train-result
+          path: result.txt

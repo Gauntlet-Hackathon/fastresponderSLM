@@ -19,6 +19,14 @@ data = [
   "huggingface-hub>=0.26",
 ]
 
+# Training, calibration and inference.
+train = [
+  "torch>=2.6",
+  "transformers>=4.57",
+  "safetensors>=0.4",
+  "huggingface-hub>=0.26",
+]
+
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.8"]
 

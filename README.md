@@ -27,18 +27,27 @@ Runs on a field laptop: CPU only, no internet, same input gives byte-identical o
 | `tests/` | Schema sync, label mapping, determinism and leak tests |
 | `docs/` | Data card, decisions and the experiment log |
 
-Coming in later PRs: `model.py`, `train.py`, `calibrate.py`, `infer.py`, `evaluate.py`, and the
-`modal/` GPU entrypoints.
+Training side: `model.py` (encoder + span tagger + heads), `features.py`, `train.py`,
+`calibrate.py` (per-head temperature scaling, ECE), `infer.py` (deterministic CPU extraction, the
+module the field adapter wraps), `durations.py`, `evaluate.py`, `publish.py` (Hugging Face Hub,
+pinned revision), and `modal_jobs/train.py` (GPU pipeline launched by the `train` workflow).
 
 ## Quick start
 
 ```bash
 uv venv -p 3.12 && source .venv/bin/activate
-uv pip install -e ".[data]" pytest ruff
+uv pip install -e ".[data,train]" pytest ruff
 ruff check . && pytest                                           # fast checks (what CI runs)
 python -m rescue_tagger.data.synthetic --n 50 --seed 1000 --out data/synthetic/batches/b0001.jsonl
 python -m rescue_tagger.data.build --config configs/data.yaml    # -> data/processed/
+python -m rescue_tagger.train --config configs/train_mmbert_small.yaml --set limit_rows=50 epochs=1
+python -m rescue_tagger.calibrate outputs/mmbert_small/best      # fits on dev only
+python -m rescue_tagger.evaluate outputs/mmbert_small/best --data data/processed/test.jsonl
+python -m rescue_tagger.infer outputs/mmbert_small/best "HELP roof 3 kids water rising Westheimer"
 ```
+
+GPU training runs on Modal: Actions -> `train` -> pick a config (needs repo secrets
+`MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `HF_TOKEN`).
 
 Environment: `OPENAI_SLM_API_KEY` (synthetic generation), `HF_TOKEN` (dataset download),
 `EVAL_REPO` (optional path to a product-repo checkout, so its eval sets are protected from training).

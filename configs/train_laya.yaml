@@ -1,0 +1,18 @@
+# Primary: Laya-multilingual encoder (mmBERT-base, decision-pretrained). Same recipe as the challenger.
+backbone: convaiinnovations/laya-multilingual
+data_dir: data/processed
+out_dir: outputs/laya
+seed: 13
+max_length: 256
+dropout: 0.1
+epochs: 4
+batch_size: 32
+steps_per_epoch: 1500
+lr_encoder: 3.0e-5
+lr_heads: 1.0e-3
+weight_decay: 0.01
+warmup_frac: 0.06
+bf16: true
+log_every: 100
+source_share: {synthetic: 0.5, munro: 0.3, humaid: 0.2}
+head_weights: {tokens: 1.0}
