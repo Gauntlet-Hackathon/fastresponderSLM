@@ -150,8 +150,8 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
         if s["tp"] + s["fp"] + s["fn"]:
             report[f"{h}_f1"] = round(f1(s["tp"], s["fp"], s["fn"]), 4)
             report[f"{h}_n"] = s["n"]  # rows labeled for this head
-            # Gold-positive items: F1's real sample size. It depends only on the labels, so it is
-            # the same for every model scored on this slice.
+            # Gold-positive items behind the F1 (labels only, the same for every model). Reported
+            # for reading; the gates do not use it.
             report[f"{h}_pos"] = s["tp"] + s["fn"]
     if loc["n"]:
         report["location_exact"] = round(loc["exact"] / loc["n"], 4)
@@ -161,6 +161,7 @@ def evaluate(ex: Extractor, rows: list[dict[str, Any]], repeats: int = 10,
             c = torch.tensor([p for p, _ in pairs])
             ok = torch.tensor([o for _, o in pairs])
             report[f"{h}_ece"] = round(ece(c, ok)[0], 4)
+    # Since 2026-11-07: min of the medians over the first 200 rows (earlier: one pass, all rows).
     report["latency_median_ms"] = round(min(medians) * 1000, 2)
     report["latency_first_pass_ms"] = round(statistics.median(latencies) * 1000, 2)
     report["cpu"] = cpu_name()

@@ -197,39 +197,44 @@ def test_real_text_fields_keep_the_fixed_limit():
     assert not ok and any("needs_f1" in w for w in why)
 
 
+
 def _with(res, **rubric):
     res["eval"]["dev_rubric"].update(rubric)
     return res
 
 
-def test_f1_noise_uses_gold_positive_items_not_rows():
-    """needs_f1 on 1,202 rows but 100 gold needs: a 2-point dip is noise, a 10-point one is not."""
+def test_f1_on_a_large_slice_keeps_the_fixed_limit_even_with_few_positives():
+    """Both runs score the same items, so few gold positives must not loosen the gate."""
     champ = summarize(_with(_result("c", real=0.80, crit={"needs_f1": 0.85}),
                             needs_n=1202, needs_pos=100))
     dip = summarize(_with(_result("d", real=0.82, crit={"needs_f1": 0.83}),
                           needs_n=1202, needs_pos=100))
-    assert gates(dip, champ)[0]
-    big = summarize(_with(_result("e", real=0.82, crit={"needs_f1": 0.75}),
-                          needs_n=1202, needs_pos=100))
-    ok, why = gates(big, champ)
+    ok, why = gates(dip, champ)
     assert not ok and any("needs_f1 dropped" in w for w in why)
-    # A champion from before *_pos existed still gets the positive count from the candidate.
-    old = summarize(_with(_result("o", real=0.80, crit={"needs_f1": 0.85}), needs_n=1202))
-    assert gates(dip, old)[0]
-    # Without positives on either side, large slices keep the fixed limit.
-    no_pos = summarize(_with(_result("f", real=0.82, crit={"needs_f1": 0.83}), needs_n=1202))
-    assert not gates(no_pos, old)[0]
 
 
-def test_same_architecture_latency_noise_does_not_reject():
+def test_latency_gate_reads_the_raw_number():
     champ = summarize(_result("c", real=0.80, latency=57.4))
-    slow = summarize(_result("s", real=0.82, latency=105.0))
-    assert gates(slow, champ)[0]
-    other = _result("x", real=0.82, latency=105.0)
-    other["config"]["backbone"] = "other"
-    ok, why = gates(summarize(other), champ)
+    ok, why = gates(summarize(_result("s", real=0.82, latency=105.0)), champ)
     assert not ok and any("latency" in w for w in why)
-    longer = _result("l", real=0.82, latency=105.0)
-    longer["config"]["max_length"] = 512
-    assert not gates(summarize(longer), champ)[0]
-    assert not gates(summarize(_result("r", latency=105.0)), None)[0]
+
+
+def test_latency_is_the_fastest_of_repeated_medians():
+    import itertools
+
+    from rescue_tagger import evaluate as E
+
+    class Ex:
+        calls = itertools.count()
+
+        def extract(self, text):
+            # the first pass is slowed by a "busy neighbour"
+            if next(self.calls) < 3:
+                import time
+                time.sleep(0.02)
+            return {"is_request": {"value": False, "confidence": 0.9}}
+
+    rows = [{"text": str(i), "labels": {}, "spans": None} for i in range(3)]
+    rep = E.evaluate(Ex(), rows, consistency_n=0)
+    assert rep["latency_median_ms"] < 10 < rep["latency_first_pass_ms"]
+    assert "x" in rep["cpu"]
