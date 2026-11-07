@@ -4,7 +4,7 @@ backbone_revision: abc32620dd4f6ab06f5fbe905dc25f310618e09f   # pinned
 data_dir: data/processed
 # Bump when training/dev labels change (configs/data.yaml): runs on different label versions are
 # never compared, grouped for seed noise, or promoted over each other.
-data_version: 6  # v6: + Gemma batch b0008 (incl. Vietnamese); v5: + vague batch b0007; v4: + Gemma batch b0005, + product sets B/C/D
+data_version: 7  # v7: + possible-prank batch b0009; v6: + Gemma batch b0008 (incl. Vietnamese); v5: + vague batch b0007; v4: + Gemma batch b0005, + product sets B/C/D
 out_dir: outputs/mmbert_small
 seed: 13
 max_length: 256

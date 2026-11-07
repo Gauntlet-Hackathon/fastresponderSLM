@@ -120,6 +120,15 @@ more disputed fields rejects the row. Masking can lose labels but never adds a w
   disagreed.
 - Synthetic only, so real-text dev is unchanged.
 
+## Data v7 (possible pranks)
+
+- **b0009-hoax-gemma:** messages that read like a request for help but carry a hoax sign (an
+  absurd detail, "lol"/"jk", meme phrasing, a friend tagging someone as a joke, a celebrity or
+  fictional character, an over-the-top tone). Soft `is_request` 0.5 (the rubric: pranks and
+  unclear posts get low confidence, never a confident yes); stated details are labeled as
+  written. 90 of 400 kept: the blind verifier read 245 as real pleas (rejected) and 42 failed to
+  parse. 47 English, 19 Spanish, 13 Vietnamese, 11 mixed.
+
 ## Known gaps
 
 - Public data is English only. Spanish and mixed text come from synthetic data alone.
