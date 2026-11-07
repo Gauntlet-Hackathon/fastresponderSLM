@@ -6,9 +6,16 @@ sources:
   munro:                     # CC BY 4.0, human-labeled, ~24k messages
     enabled: true
     weight: 1.0
+    # News articles are never someone asking for help; their upstream request flag mostly means
+    # "this article mentions needs". Relabeled not-a-request in train/dev (test keeps upstream).
+    not_request: {genre: [news]}
   humaid:                    # CC BY-NC-SA 4.0, crowd-labeled tweets; weak fit for is_request
     enabled: true
     weight: 0.5
+    # These classes hold many real asks ("please send help, they have no water") labeled as
+    # not-a-request; leave is_request unknown there instead of teaching "ask = not a request".
+    unreliable_is_request:
+      class_label: [sympathy_and_support, rescue_volunteering_or_donation_effort]
   synthetic:                 # OpenAI-generated, label-first, blind-verified (EN / ES / mixed)
     enabled: true
     weight: 1.0

@@ -61,6 +61,7 @@ def summarize(result: dict[str, Any]) -> dict[str, Any]:
         "signature": signature(result["config"]),
         "reused": bool(result.get("reused_weights_from")),
         "backbone": result["config"].get("backbone"),
+        "data_version": result["config"].get("data_version"),
     }
 
 
@@ -83,6 +84,7 @@ def seed_spread(candidate: dict[str, Any], runs_dir: Path | None) -> float | Non
         except (KeyError, json.JSONDecodeError):
             continue  # runs from before dev reports existed
         if (s["backbone"] == candidate["backbone"] and s["real_score"] is not None
+                and s["data_version"] == candidate["data_version"]
                 and not s["reused"]):
             groups.setdefault(s["signature"], []).append(s["real_score"])
     spreads = [statistics.stdev(v) for v in groups.values() if len(v) >= 2]
@@ -131,6 +133,10 @@ def compare(candidate: Path, champion: Path, runs_dir: Path | None = None,
     result = json.loads(candidate.read_text())
     cand = summarize(result)
     champ = json.loads(champion.read_text()) if champion.exists() else None
+    if champ is not None and champ.get("data_version") != cand["data_version"]:
+        # Scores on different dev labels aren't comparable; the first run on the new labels
+        # becomes the baseline (the old champion stays on record in its decision).
+        champ = None
     spread = seed_spread(cand, runs_dir)
     ok, reasons = gates(cand, champ, spread)
     if result["config"].get("purpose") == "seed" and ok:

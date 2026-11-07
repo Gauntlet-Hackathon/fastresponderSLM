@@ -121,3 +121,17 @@ def test_gain_bar_is_capped_when_seed_noise_is_large():
     champ = summarize(_result("c", real=0.80))
     cand = summarize(_result("a", real=0.825, synth=0.97))
     assert gates(cand, champ, spread=0.05)[0]  # bar capped at 0.02, not 0.10
+
+
+def test_runs_on_other_label_versions_are_not_compared(tmp_path):
+    old = _result("old", real=0.95)
+    (tmp_path / "old").mkdir()
+    (tmp_path / "old" / "result.json").write_text(json.dumps(old))
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(summarize(old)))
+    new = _result("new", real=0.80, seed=7)
+    new["config"]["data_version"] = 2
+    (tmp_path / "new.json").write_text(json.dumps(new))
+    d = compare(tmp_path / "new.json", champ, tmp_path, promote=True)
+    assert d["promote"] and d["champion"] is None and d["seed_spread"] is None
+    assert json.loads(champ.read_text())["run"] == "new"

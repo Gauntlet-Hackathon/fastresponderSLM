@@ -193,6 +193,8 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
                 out = model(b["input_ids"], b["attention_mask"])
             out = {k: v.float() for k, v in out.items()}
             loss, parts = compute_loss(out, b, head_weights)
+            if not parts:
+                continue  # nothing labeled in this batch (rare); no gradient to take
             if not torch.isfinite(loss):
                 raise FloatingPointError(f"non-finite loss at step {step + 1}: {parts}")
             loss.backward()
