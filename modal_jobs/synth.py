@@ -5,13 +5,14 @@
 A vLLM server (OpenAI-compatible) holds one model at a time. Phase 1: the generator writes messages
 for label-first specs (rescue_tagger.data.synthetic). Phase 2: a model from another family labels
 each message blind; rows where it disagrees with the spec are rejected. The batch lands in the
-`rescue-tagger-runs` volume under synth/ and is printed between markers, so the GitHub workflow can
-commit it. Launched by .github/workflows/synth.yml.
+`rescue-tagger-runs` volume under synth/ and is returned to the local entrypoint, which writes it
+for the GitHub workflow to commit. Launched by .github/workflows/synth.yml.
 """
 
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -38,10 +39,32 @@ app = modal.App("rescue-synth", image=image)
 PORT = 8000
 
 
+def stop(proc: subprocess.Popen) -> None:
+    """Stop vLLM and its engine child process (a plain kill orphans the child, which keeps the
+    GPU memory), then wait until the GPU is free for the next model."""
+    for sig, wait in ((signal.SIGTERM, 60), (signal.SIGKILL, 30)):
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            break
+        try:
+            proc.wait(timeout=wait)
+            break
+        except subprocess.TimeoutExpired:
+            continue
+    for _ in range(60):
+        used = subprocess.run(["nvidia-smi", "--query-gpu=memory.used",
+                               "--format=csv,noheader,nounits"], capture_output=True, text=True)
+        if used.returncode == 0 and all(int(x) < 2000 for x in used.stdout.split()):
+            return
+        time.sleep(5)
+    raise RuntimeError("GPU memory was not released after stopping vLLM")
+
+
 def serve(model: str) -> subprocess.Popen:
     proc = subprocess.Popen([sys.executable, "-m", "vllm.entrypoints.openai.api_server",
                              "--model", model, "--port", str(PORT), "--max-model-len", "8192",
-                             "--gpu-memory-utilization", "0.92"])
+                             "--gpu-memory-utilization", "0.92"], start_new_session=True)
     import urllib.request
 
     for _ in range(180):  # up to 30 min for download + load
@@ -52,7 +75,7 @@ def serve(model: str) -> subprocess.Popen:
             return proc
         except OSError:
             time.sleep(10)
-    proc.kill()
+    stop(proc)
     raise RuntimeError(f"vLLM did not come up for {model}")
 
 
@@ -77,16 +100,14 @@ def generate(name: str, n: int, seed: int, focus: bool, gen_model: str,
         run("--n", str(n), "--seed", str(seed), "--out", str(raw), "--gen-model", gen_model,
             "--verify-model", "", "--workers", "32", *(["--focus"] if focus else []))
     finally:
-        proc.kill()
-        proc.wait()
+        stop(proc)
     hf_cache.commit()
     proc = serve(verify_model)
     try:
         run("--verify-file", str(raw), "--verify-model", verify_model, "--out",
             str(out / f"{name}.jsonl"), "--workers", "32")
     finally:
-        proc.kill()
-        proc.wait()
+        stop(proc)
     hf_cache.commit()
     rejected = "".join(p.read_text() for p in (out / "raw.rejected.jsonl",
                                                 out / f"{name}.rejected.jsonl") if p.exists())

@@ -41,6 +41,10 @@ jobs:
         env:
           NAME: ${{ inputs.name }}
         run: |
+          if ! [[ "$NAME" =~ ^[a-z0-9][a-z0-9._-]{1,60}$ ]]; then
+            echo "batch name must be lowercase letters, digits, dot, dash or underscore" >&2
+            exit 1
+          fi
           if git ls-remote --exit-code --heads origin "synth/$NAME" >/dev/null; then
             echo "branch synth/$NAME already exists; pick a new batch name" >&2
             exit 1
@@ -58,7 +62,8 @@ jobs:
           set -eo pipefail
           FLAG=$([ "$FOCUS" = "true" ] && echo "--focus" || echo "--no-focus")
           modal run modal_jobs/synth.py --name "$NAME" --n "$N" --seed "$SEED" $FLAG \
-            | tee -a "$GITHUB_STEP_SUMMARY"
+            | tee "$RUNNER_TEMP/synth.txt"
+          grep -E "^kept [0-9]+" "$RUNNER_TEMP/synth.txt" >> "$GITHUB_STEP_SUMMARY" || true
       - name: Push the batch to synth/<name>
         env:
           NAME: ${{ inputs.name }}

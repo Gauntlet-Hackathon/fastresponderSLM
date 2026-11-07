@@ -506,6 +506,9 @@ def _call_json(client, model: str, system: str, user: str, schema: dict, name: s
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         response_format={"type": "json_schema",
                          "json_schema": {"name": name, "schema": schema, "strict": True}},
+        # Local vLLM only (OpenAI reasoning models reject max_tokens): a looping constrained
+        # decode is cut off and rejected instead of running to the context limit.
+        **({"max_tokens": 1500} if os.environ.get("OPENAI_BASE_URL") else {}),
     )
     return json.loads(resp.choices[0].message.content)
 
@@ -557,6 +560,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="only check the records in this file with --verify-model")
     args = ap.parse_args(argv)
 
+    if not args.verify_file and args.n <= 0:
+        ap.error("give --n (specs to generate) or --verify-file")
     client = _client()
     with ThreadPoolExecutor(args.workers) as pool:
         if args.verify_file:
