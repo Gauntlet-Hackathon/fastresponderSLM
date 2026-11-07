@@ -102,6 +102,11 @@ def noise(p: float, n: int | None) -> float:
     return 2 * math.sqrt(p * (1 - p) / n)
 
 
+def same_real_dev(a: Any, b: Any) -> bool:
+    """Same real-text dev rows and labels, so real-text scores (and their seed noise) compare."""
+    return a == b or (a, b) in REAL_DEV_SAME or (b, a) in REAL_DEV_SAME
+
+
 def signature(cfg: dict[str, Any]) -> str:
     """Config identity ignoring seed and output paths, to group seed repeats."""
     skip = {"seed", "out_dir", "data_dir", "purpose"}
@@ -120,8 +125,8 @@ def seed_spread(candidate: dict[str, Any], runs_dir: Path | None) -> float | Non
             s = summarize(json.loads(p.read_text()))
         except (KeyError, json.JSONDecodeError):
             continue  # runs from before dev reports existed
-        if (s["backbone"] == candidate["backbone"] and s["real_score"] is not None
-                and s["data_version"] == candidate["data_version"]
+        if (s["backbone"] == candidate.get("backbone") and s["real_score"] is not None
+                and same_real_dev(s["data_version"], candidate.get("data_version"))
                 and not s["reused"]):
             groups.setdefault(s["signature"], []).append(s["real_score"])
     spreads = [statistics.stdev(v) for v in groups.values() if len(v) >= 2]

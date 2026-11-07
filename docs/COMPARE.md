@@ -34,6 +34,12 @@ in `src/rescue_tagger/llm_baseline.py`; `--show-prompts` prints them.
 
 ## Fairness and overfitting rules
 
+- Since data v3, four edge categories are also targeted by training data: powered medical
+  devices, one duration covering several needs, old posts and indirect vulnerability (counted as
+  under-covered in the training data, generated from the rubric, never from edge text). Scores in
+  those four now show whether targeted data worked, not generalization to unseen categories; the
+  other eight categories still do.
+
 - This is a report, never a selection signal. Nothing in it picks a run, a threshold or a prompt.
   Each scoring of our model on test and Harvey is logged to `/runs/eval_reads.jsonl`.
 - The Opus prompts were written from the rubric and not tuned on these results. A test checks that

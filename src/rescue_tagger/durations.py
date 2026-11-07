@@ -99,3 +99,44 @@ def nearest_need(text: str, start: int, end: int, kinds: list[str]) -> str | Non
                 if dist <= NEED_WINDOW and (best_dist is None or dist < best_dist):
                     best, best_dist = kind, dist
     return best
+
+
+# What may sit between two need words in one list: "food or water", "comida ni agua",
+# "food, water and meds", "no food and no water". The leading \w* finishes a keyword prefix
+# ("medicin" -> "medicine").
+_LIST_GAP = re.compile(r"\w*[\s,/&+]*(?:(?:and|or|nor|plus|ni|y|o|e)\b)?[\s,/&+]*"
+                       r"(?:(?:no|sin)\b)?\s*")
+
+
+def needs_for_span(text: str, start: int, end: int, kinds: list[str]) -> list[tuple[str, int]]:
+    """(kind, distance) for every need a duration span covers: the nearest need keyword (see
+    nearest_need) and the needs listed together with it, so "no food or water for 2 days" gives
+    both food and water (the rubric: one duration covering several needs applies to each)."""
+    p = plain(text)
+    hits = sorted((m.start(), m.end(), kind) for kind in kinds for word in NEED_WORDS[kind]
+                  for m in re.finditer(re.escape(word), p))
+    if not hits:
+        return []
+
+    def dist(h: tuple[int, int, str]) -> int:
+        return start - h[1] if h[1] <= start else max(0, h[0] - end)
+
+    anchor = min(hits, key=dist)
+    d = dist(anchor)
+    if d > NEED_WINDOW:
+        return []
+    out = {anchor[2]: d}
+    i = hits.index(anchor)
+    for step in (1, -1):  # walk the list outwards from the anchor in both directions
+        j, cur = i + step, anchor
+        while 0 <= j < len(hits):
+            nxt = hits[j]
+            lo, hi = (cur[1], nxt[0]) if step == 1 else (nxt[1], cur[0])
+            if lo > hi:  # overlapping keyword matches ("med" in "medicine"): skip
+                j += step
+                continue
+            if lo < start < hi or lo < end < hi or not _LIST_GAP.fullmatch(p[lo:hi]):
+                break
+            out.setdefault(nxt[2], d)
+            cur, j = nxt, j + step
+    return list(out.items())

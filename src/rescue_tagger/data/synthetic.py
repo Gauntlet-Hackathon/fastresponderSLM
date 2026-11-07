@@ -103,6 +103,11 @@ class Spec:
 DEVICES = ("a home oxygen concentrator", "a CPAP machine", "a home dialysis machine",
            "a ventilator", "a powered wheelchair that needs charging", "a nebulizer",
            "an electric feeding pump", "a suction machine")
+# Old posts name one of these, never Harvey: the Harvey hold-out is Harvey tweets, and "Harvey
+# means old post" is a shortcut (data/synthetic/fix_storm_names.py fixed the earlier batches).
+PAST_STORMS = ("Hurricane Ike in 2008", "Tropical Storm Allison in 2001",
+               "Tropical Storm Imelda in 2019", "Hurricane Beryl in 2024", "Hurricane Rita in 2005",
+               "the Memorial Day flood of 2015", "a past year such as 2016")
 FOCUS = ("medical_device", "shared_duration", "stale", "indirect_vulnerable")
 FOCUS_WEIGHTS = (35, 35, 15, 15)
 
@@ -131,6 +136,8 @@ def sample_focus_spec(seed: int) -> Spec:
         spec.vulnerable = sorted(set(spec.vulnerable) | {"medical"})
         if spec.request_kind == "other":
             spec.request_kind = r.choice(["evacuation", "rescue"])
+        if "wheelchair" in spec.device:  # a powered wheelchair also means a mobility disability
+            spec.vulnerable = sorted(set(spec.vulnerable) | {"disabled"})
     elif focus == "shared_duration":
         kinds = r.sample(list(L.NEED_KINDS), r.choice([2, 2, 3]))
         hours = r.choice([8, 12, 24, 36, 48, 72])
@@ -140,6 +147,8 @@ def sample_focus_spec(seed: int) -> Spec:
     elif focus == "indirect_vulnerable":
         spec.vulnerable = r.sample(list(L.VULNERABLE_KINDS), r.choice([1, 1, 2]))
         spec.vulnerable_indirect = True
+    if "medical_device_no_power" in spec.hazards:  # the rubric, for base specs too
+        spec.vulnerable = sorted(set(spec.vulnerable) | {"medical"})
     if spec.request_kind == "supply" and not spec.needs:
         spec.needs = {r.choice(L.NEED_KINDS): r.choice([None, 24, 48])}
     spec.vulnerable = [v for v in L.VULNERABLE_KINDS if v in spec.vulnerable]
@@ -264,8 +273,10 @@ def build_prompt(spec: Spec) -> str:
         }[spec.request_kind]
         lines.append(f"Message type: {kind_text}.")
         if spec.is_stale_post:
+            storm = random.Random(f"storm:{spec.seed}").choice(PAST_STORMS)
             lines.append("This is an OLD post from a past storm resurfacing: include a clear time "
-                         "reference showing it is old (e.g. a past year or a past storm's name).")
+                         f"reference showing it is old, here {storm}. Do not mention Harvey "
+                         "or 2017.")
     lines.append("Hazards to express (exactly these): "
                  + (", ".join(spec.hazards) if spec.hazards else "none"))
     if spec.device:

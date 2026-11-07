@@ -108,3 +108,25 @@ def test_decode_snaps_to_whole_words_and_merges():
 def test_confidence_truncates_below_thresholds():
     from rescue_tagger.infer import _r
     assert _r(0.5996) == 0.599 and _r(0.2499) == 0.249 and _r(0.75) == 0.75
+
+
+def test_one_duration_covers_a_listed_group_of_needs():
+    from rescue_tagger.durations import needs_for_span
+
+    def kinds(text, phrase, ks=("food", "water", "meds")):
+        i = text.index(phrase)
+        return sorted(k for k, _ in needs_for_span(text, i, i + len(phrase), list(ks)))
+
+    assert kinds("no food or water for 2 days", "for 2 days") == ["food", "water"]
+    assert kinds("sin comida ni agua desde ayer", "desde ayer") == ["food", "water"]
+    assert kinds("out of food, water and medicine for 3 days", "for 3 days") == [
+        "food", "meds", "water"]
+    assert kinds("no food and no water since last night", "since last night") == ["food", "water"]
+    # Separate durations stay separate: the list stops at the other duration.
+    t = "no food for 2 days and no water since this morning"
+    assert kinds(t, "for 2 days") == ["food"]
+    assert kinds(t, "since this morning") == ["water"]
+    # A need not predicted is never added; a far keyword is not a list member.
+    assert kinds("no food or water for 2 days", "for 2 days", ("food",)) == ["food"]
+    assert kinds("we have plenty of water at the shelter. no food for a day", "for a day") == [
+        "food"]

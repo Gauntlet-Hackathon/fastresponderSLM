@@ -253,3 +253,19 @@ def test_new_synthetic_version_must_hold_the_real_text_score(tmp_path):
         assert d["promote"] is want, d["reasons"]
         if not want:
             assert any("previous data version" in r for r in d["reasons"])
+
+
+def test_v2_seed_noise_carries_over_to_v3(tmp_path):
+    from rescue_tagger.loop import seed_spread
+
+    for name, seed, real in (("a", 13, 0.80), ("b", 7, 0.84)):
+        r = _result(name, real=real, seed=seed)
+        r["config"]["data_version"] = 2
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "result.json").write_text(json.dumps(r))
+    v3 = _result("c", real=0.82)
+    v3["config"]["data_version"] = 3
+    assert seed_spread(summarize(v3), tmp_path) is not None
+    v4 = _result("d", real=0.82)
+    v4["config"]["data_version"] = 4
+    assert seed_spread(summarize(v4), tmp_path) is None
