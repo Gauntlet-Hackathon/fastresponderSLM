@@ -66,6 +66,7 @@ def summarize(result: dict[str, Any]) -> dict[str, Any]:
         "n": {k: field_n(both, k) for k in (*CRITICAL, *(k for k in both if k.endswith("_ece")))},
         "ece": {k: v for k, v in both.items() if k.endswith("_ece")},
         "latency_ms": both.get("latency_median_ms"),
+        "cpu": both.get("cpu"),
         "consistency_changed_pct": both.get("consistency_changed_pct"),
         "signature": signature(result["config"]),
         "reused": bool(result.get("reused_weights_from")),
@@ -163,8 +164,9 @@ def gates(cand: dict[str, Any], champ: dict[str, Any] | None,
         c, b = cand["critical"].get(k), champ["critical"].get(k)
         if c is None or b is None:
             continue
-        # F1 is treated like a proportion over rows; its true sample (positive items) is
-        # smaller, so this errs strict.
+        # F1 is treated like a proportion over rows, which errs strict. Both runs score the same
+        # items (a paired comparison), so the champion's sampling error is not the right
+        # allowance on large slices; those keep the fixed limit.
         tol = min(max(MAX_DROP, noise(b, rows(k))), MAX_DROP_TOL)
         if b - c > tol:
             fails.append(f"{k} dropped {b:.4f} -> {c:.4f} (past noise {tol:.4f})")

@@ -198,11 +198,12 @@ def run(slm: Path | None, processed: Path, allow_partial: bool = False) -> dict[
         for set_name, rows in sets.items():
             ex = Stored(sysd["ex"].by_text, rows)
             if set_name == "edge":
+                ev = evaluate(ex, rows, consistency_n=0, latency_passes=0)
                 rep[set_name] = {**edge_report(ex, rows),
-                                 **{k: v for k, v in evaluate(ex, rows, consistency_n=0).items()
+                                 **{k: v for k, v in ev.items()
                                     if k.endswith(("_f1", "_accuracy", "location_partial"))}}
             else:
-                ev = evaluate(ex, rows, consistency_n=0)
+                ev = evaluate(ex, rows, consistency_n=0, latency_passes=0)
                 rep[set_name] = {**request_prf(ex, rows),
                                  **{k: v for k, v in ev.items()
                                     if k.endswith(("_f1", "_accuracy"))}}
