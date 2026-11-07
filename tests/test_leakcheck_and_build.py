@@ -75,3 +75,9 @@ def test_request_relabel_rules_apply_to_train_and_dev_only():
                   {"is_request": False, "request_kind": "other"})
     relabel_requests(harvey, humaid)
     assert harvey["labels"]["is_request"] is False  # Harvey is never touched
+
+
+def test_eval_copy_applies_the_rules_to_test_rows():
+    news = _rec("test", {"genre": "news"})
+    relabel_requests(news, {"not_request": {"genre": ["news"]}}, eval_copy=True)
+    assert news["labels"]["is_request"] is False

@@ -102,7 +102,13 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str],
                                    ["--exclude-source", "synthetic"]),
                                   ("test_synthetic", "data/processed/test.jsonl",
                                    ["--source", "synthetic"]),
-                                  ("harvey", "data/processed/harvey.jsonl", [])):
+                                  ("harvey", "data/processed/harvey.jsonl", []),
+                                  # Secondary: same sets with the train/dev category rules applied
+                                  # (docs/DATA.md); the upstream-label scores above stay primary.
+                                  ("test_real_rubric_labels", "data/processed/test_rubric.jsonl",
+                                   ["--exclude-source", "synthetic"]),
+                                  ("harvey_rubric_labels", "data/processed/harvey_rubric.jsonl",
+                                   [])):
             score(name, data, *extra)
             log_eval_read(reads, run_name, name)
 

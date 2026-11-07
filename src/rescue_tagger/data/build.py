@@ -63,13 +63,15 @@ def _matches(rec: dict[str, Any], rules: dict[str, list[str]]) -> bool:
     return any(meta.get(key) in values for key, values in rules.items())
 
 
-def relabel_requests(rec: dict[str, Any], src: dict[str, Any]) -> None:
+def relabel_requests(rec: dict[str, Any], src: dict[str, Any], eval_copy: bool = False) -> None:
     """Whole upstream categories whose request flag doesn't match the rubric:
       not_request            -> never a request (e.g. Munro news articles: nobody is asking)
       unreliable_is_request  -> request label left unknown (e.g. HumAID sympathy tweets, which hold
                                 many real asks labeled as not-a-request)
-    Train and dev only: test sets and Harvey keep their upstream labels unchanged."""
-    if rec["split"] not in ("train", "dev") or (rec.get("meta") or {}).get("harvey_holdout"):
+    Train and dev only: test sets and Harvey keep their upstream labels unchanged. `eval_copy`
+    applies the same rules to a copy of an eval row, for the secondary "rubric labels" score."""
+    if not eval_copy and (rec["split"] not in ("train", "dev")
+                          or (rec.get("meta") or {}).get("harvey_holdout")):
         return
     if _matches(rec, src.get("not_request", {})):
         lab = rec["labels"]
@@ -134,6 +136,17 @@ def build(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
     for rec in kept:
         key = "harvey" if rec.get("meta", {}).get("harvey_holdout") else rec["split"]
         files[key].append(rec)
+
+    # Secondary eval files: the same per-category rules applied to copies of test and Harvey, so the
+    # morning check can report both the upstream-label score (primary) and the rubric-label score.
+    for name in ("test", "harvey"):
+        rubric = []
+        for rec in files[name]:
+            cp = json.loads(json.dumps(rec))
+            relabel_requests(cp, src_cfg[cp["source"]], eval_copy=True)
+            if cp["labels"] or cp.get("spans"):
+                rubric.append(cp)
+        files[f"{name}_rubric"] = rubric
 
     manifest: dict[str, Any] = {"files": {}, "leak_dropped": len(dropped)}
     for name, recs in files.items():

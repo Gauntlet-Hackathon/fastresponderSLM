@@ -76,6 +76,7 @@ jobs:
       # run to finish before reading what is active.
       - name: Start the next loop tick
         if: always() && github.ref == 'refs/heads/main'
+        continue-on-error: true   # a failed hand-off must not mark a finished training run failed
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
