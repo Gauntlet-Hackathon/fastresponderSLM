@@ -101,3 +101,20 @@ def test_distilled_rows_replace_their_originals(tmp_path, monkeypatch):
     import pytest
     with pytest.raises(ValueError):
         B.merge_distilled(bad, tmp_path, "d/*.jsonl")
+
+
+def test_fetch_retries_network_errors():
+    from rescue_tagger.data.humaid import fetch
+
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise ConnectionResetError("reset")
+        return b"ok"
+
+    assert fetch(flaky, waits=(0, 0, 0)) == b"ok" and len(calls) == 3
+    import pytest
+    with pytest.raises(OSError):
+        fetch(lambda: (_ for _ in ()).throw(ConnectionResetError()), waits=(0,))

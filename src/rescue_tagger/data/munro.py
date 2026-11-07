@@ -40,7 +40,11 @@ def download(raw_dir: Path) -> Path:
     for name in FILES.values():
         target = out / name
         if not target.exists():
-            urllib.request.urlretrieve(f"{BASE_URL}/{name}", target)  # noqa: S310 (pinned https)
+            from rescue_tagger.data.humaid import fetch
+
+            part = target.with_name(target.name + ".part")   # a cut-off file never becomes target
+            fetch(lambda u=f"{BASE_URL}/{name}", t=part: urllib.request.urlretrieve(u, t))  # noqa: S310
+            part.replace(target)
     return out
 
 

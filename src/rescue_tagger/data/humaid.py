@@ -35,6 +35,25 @@ HARVEY_WORDS = re.compile(r"harvey|houston", re.IGNORECASE)
 TWITTER_EPOCH_MS = 1288834974657
 
 
+def fetch(get, waits: tuple[float, ...] = (5, 15, 45)):
+    """get() with retries on network errors (a reset connection killed whole training jobs)."""
+    import http.client
+    import time
+
+    for w in (*waits, None):
+        try:
+            return get()
+        except (OSError, http.client.HTTPException):   # resets, timeouts, cut-off reads
+            if w is None:
+                raise
+            time.sleep(w)
+
+
+def _read(req: urllib.request.Request) -> bytes:
+    with urllib.request.urlopen(req) as resp:  # noqa: S310
+        return resp.read()
+
+
 def download(raw_dir: Path, token: str | None = None) -> Path:
     out = raw_dir / "humaid"
     out.mkdir(parents=True, exist_ok=True)
@@ -47,8 +66,7 @@ def download(raw_dir: Path, token: str | None = None) -> Path:
             req = urllib.request.Request(url)
             if token:
                 req.add_header("Authorization", f"Bearer {token}")
-            with urllib.request.urlopen(req) as resp, target.open("wb") as f:  # noqa: S310
-                f.write(resp.read())
+            target.write_bytes(fetch(lambda r=req: _read(r)))
     return out
 
 
