@@ -217,10 +217,12 @@ def compare(candidate: Path, champion: Path, runs_dir: Path | None = None,
             if not champ.get("critical_real") and runs_dir is not None:
                 # Champions promoted before critical_real existed: rebuild from their result.
                 src = runs_dir / champ["run"] / "result.json"
-                if src.exists():
+                try:
                     rebuilt = summarize(json.loads(src.read_text()))
                     champ = {**champ, "critical_real": rebuilt["critical_real"],
                              "n_real": rebuilt["n_real"]}
+                except (OSError, KeyError, json.JSONDecodeError):
+                    pass  # falls through to "not checked"
             old_crit = champ.get("critical_real") or {}
             if not old_crit:
                 held.append("previous champion has no real-text critical fields recorded; "
