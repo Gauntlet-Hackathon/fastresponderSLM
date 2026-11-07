@@ -1,0 +1,39 @@
+name: diagnose
+run-name: diagnose ${{ inputs.run }}
+
+# Request-detector deep check of a finished run (see src/rescue_tagger/diagnose.py).
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: "Run name on the Modal volume, e.g. train_mmbert_small-20261107-044430"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install modal==1.6.3 pyyaml
+      - name: Diagnose on Modal
+        shell: bash
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          RUN: ${{ inputs.run }}
+        run: |
+          set -eo pipefail
+          modal run modal_jobs/train.py::diag --run "$RUN" | tee "$RUNNER_TEMP/diagnose.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnose
+          path: ${{ runner.temp }}/diagnose.txt
