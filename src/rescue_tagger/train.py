@@ -75,7 +75,11 @@ def sampler_for(rows: list[dict[str, Any]], source_share: dict[str, float], n: i
 
 
 def compute_loss(out: dict[str, torch.Tensor], b: dict[str, torch.Tensor],
-                 head_weights: dict[str, float]) -> tuple[torch.Tensor, dict[str, float]]:
+                 head_weights: dict[str, float], positive_weight: dict[str, float] | None = None
+                 ) -> tuple[torch.Tensor, dict[str, float]]:
+    """positive_weight: per multi-label head, the BCE weight on a present kind (pos_weight), so a
+    missed hazard or vulnerable person costs more than a false alarm (rubric: never drop a P1).
+    Dev loss uses the plain loss, so checkpoint scores stay comparable across runs."""
     w = b["weight"]
     parts: dict[str, torch.Tensor] = {}
 
@@ -95,7 +99,10 @@ def compute_loss(out: dict[str, torch.Tensor], b: dict[str, torch.Tensor],
     for head in L.MULTI_LABEL_HEADS:
         m = b[f"{head}_mask"] * w
         if m.sum() > 0:
-            loss = F.binary_cross_entropy_with_logits(out[head], b[head], reduction="none").mean(1)
+            pw = (positive_weight or {}).get(head)
+            pos = (torch.full_like(out[head][0], float(pw)) if pw else None)
+            loss = F.binary_cross_entropy_with_logits(out[head], b[head], reduction="none",
+                                                      pos_weight=pos).mean(1)
             parts[head] = (loss * m).sum() / m.sum()
     for head in (*L.SINGLE_LABEL_HEADS, "people_count"):
         valid = (b[head] != IGNORE).float() * w
@@ -169,6 +176,7 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
         * max(0.0, (total_steps - s) / max(total_steps - warmup, 1)))
     use_amp = device.type == "cuda" and cfg.get("bf16", True)
     head_weights = cfg.get("head_weights", {})
+    positive_weight = cfg.get("positive_weight") or {}
 
     # Dev checks: real text and synthetic are tracked apart, so a run that only learns the
     # generator's style shows up as a widening gap; the checkpoint is picked on all of dev.
@@ -207,7 +215,7 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
             with torch.autocast(device.type, dtype=torch.bfloat16, enabled=use_amp):
                 out = model(b["input_ids"], b["attention_mask"])
             out = {k: v.float() for k, v in out.items()}
-            loss, parts = compute_loss(out, b, head_weights)
+            loss, parts = compute_loss(out, b, head_weights, positive_weight)
             if not parts:
                 continue  # nothing labeled in this batch (rare); no gradient to take
             if not torch.isfinite(loss):

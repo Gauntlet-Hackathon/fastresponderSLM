@@ -163,3 +163,13 @@ def test_calibration_ignores_soft_targets():
     d = {"target:is_request_mask": torch.tensor([1.0, 1.0, 1.0, 0.0]),
          "target:is_request": torch.tensor([1.0, 0.0, 0.5, 0.0])}
     assert fit_mask(d, "is_request").tolist() == [True, True, False, False]
+
+
+def test_positive_weight_makes_a_missed_kind_cost_more():
+    out, batch = _batch_and_out()
+    batch["hazards"] = torch.zeros_like(batch["hazards"])
+    batch["hazards"][0, 0] = 1.0
+    batch["hazards_mask"] = torch.tensor([1.0, 1.0])
+    _, plain = compute_loss(out, batch, {})
+    _, weighted = compute_loss(out, batch, {}, {"hazards": 3.0})
+    assert weighted["hazards"] > plain["hazards"]
