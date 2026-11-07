@@ -180,7 +180,7 @@ def sample_vague_spec(seed: int) -> Spec:
 def sample_spec(seed: int) -> Spec:
     """Deterministic: the same seed always gives the same spec."""
     r = random.Random(seed)
-    lang = r.choices(L.LANGS, weights=(55, 30, 15))[0]
+    lang = r.choices(L.SYNTH_LANGS, weights=(55, 30, 15))[0]
     style = r.choice(STYLES)
     roll = r.random()
     stale = False
@@ -404,6 +404,32 @@ VERIFY_SCHEMA: dict[str, Any] = {
                  "location_type", "people_count"],
 }
 
+# Vague rows carry no hard is_request label, so a yes/no verifier could never reject one that
+# reads as a clear request or a clear non-request. For them the verifier gets a third answer, and
+# only "cannot_tell" keeps the row. Normal rows keep the plain yes/no schema.
+VAGUE_VERIFY_SYSTEM = VERIFY_SYSTEM + """ \
+help: needs_help when the sender clearly asks for or needs help, no_help when they clearly do not \
+(news, offers, questions, venting, saying they are fine), cannot_tell when a careful reader could \
+not decide either way."""
+
+VAGUE_VERIFY_SCHEMA: dict[str, Any] = {
+    **VERIFY_SCHEMA,
+    "properties": {**VERIFY_SCHEMA["properties"],
+                   "help": {"enum": ["needs_help", "no_help", "cannot_tell"]}},
+    "required": [*VERIFY_SCHEMA["required"], "help"],
+}
+
+
+def _is_vague(rec: dict[str, Any]) -> bool:
+    return "is_request" in rec.get("soft_labels", {})
+
+
+def _verify_call(client, rec: dict[str, Any], verify_model: str) -> dict[str, Any]:
+    if _is_vague(rec):
+        return _call_json(client, verify_model, VAGUE_VERIFY_SYSTEM, rec["text"],
+                          VAGUE_VERIFY_SCHEMA, "labels")
+    return _call_json(client, verify_model, VERIFY_SYSTEM, rec["text"], VERIFY_SCHEMA, "labels")
+
 
 def find_span(text: str, quote: str | None, label: str,
               taken: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
@@ -527,6 +553,7 @@ def _diffs(rec: dict[str, Any], v: dict[str, Any]) -> list[tuple[str, str]]:
 # become unknown (masked from the loss, never guessed), as with the edge cases' second labeler.
 # Disagreeing on whether it is a request at all, or on many fields, means the text is off-spec.
 MAX_MASKED = 2
+SPAN_OF_HEAD = {"people_count": "COUNT", "needs": "NEED_DURATION"}
 
 
 def apply_verdict(rec: dict[str, Any], v: dict[str, Any], verify_model: str
@@ -536,6 +563,9 @@ def apply_verdict(rec: dict[str, Any], v: dict[str, Any], verify_model: str
     diffs = _diffs(rec, v)
     heads = [h for h, _ in diffs]
     rec["meta"]["verifier"] = verify_model
+    if _is_vague(rec) and v.get("help") != "cannot_tell":
+        return {"seed": seed, "error": f"verify: vague row read as help={v.get('help')}",
+                "text": rec["text"]}
     if "is_request" in heads or len(heads) > MAX_MASKED:
         return {"seed": seed, "error": "verify: " + "; ".join(m for _, m in diffs),
                 "text": rec["text"]}
@@ -547,6 +577,11 @@ def apply_verdict(rec: dict[str, Any], v: dict[str, Any], verify_model: str
                 del rec["labels"][h]
                 if h == "needs":
                     rec.pop("need_hours", None)
+        # A masked count or need must not still be taught through its span: the BIO head reads
+        # spans, and dropping just those spans would teach "O" on the words. Spans become unknown.
+        disputed = {SPAN_OF_HEAD[h] for h in heads if h in SPAN_OF_HEAD}
+        if rec.get("spans") and any(sp["label"] in disputed for sp in rec["spans"]):
+            rec["spans"] = None
         rec["meta"]["masked"] = {h: m for h, m in diffs}
         rec.pop("gold_extracted", None)  # no longer matches the labels (few-shots skip it)
         validate_record(rec)
@@ -585,9 +620,7 @@ def generate_one(client, seed: int, gen_model: str, verify_model: str | None,
         gen = _call_json(client, gen_model, GEN_SYSTEM, build_prompt(spec), GEN_SCHEMA, "message")
         rec = build_record(spec, gen, gen_model)
         if verify_model:
-            v = _call_json(client, verify_model, VERIFY_SYSTEM, rec["text"], VERIFY_SCHEMA,
-                           "labels")
-            return apply_verdict(rec, v, verify_model)
+            return apply_verdict(rec, _verify_call(client, rec, verify_model), verify_model)
         return {"record": rec}
     except Exception as e:  # noqa: BLE001 - every failure is a rejected row, logged with its seed
         return {"seed": seed, "error": f"{type(e).__name__}: {e}"}
@@ -595,7 +628,7 @@ def generate_one(client, seed: int, gen_model: str, verify_model: str | None,
 
 def verify_record(client, rec: dict[str, Any], verify_model: str) -> dict[str, Any]:
     try:
-        v = _call_json(client, verify_model, VERIFY_SYSTEM, rec["text"], VERIFY_SCHEMA, "labels")
+        v = _verify_call(client, rec, verify_model)
     except Exception as e:  # noqa: BLE001 - a failed check is a rejected row
         return {"seed": rec["meta"]["spec"]["seed"], "error": f"{type(e).__name__}: {e}"}
     return apply_verdict(rec, v, verify_model)

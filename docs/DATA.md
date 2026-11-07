@@ -77,6 +77,31 @@ generator's reading of its own text.
   set) exactly or near-verbatim (half its word 8-grams) is dropped. The first build dropped 301 rows.
 - The sealed holdout (set E) is never read by anything in this repo.
 
+## Data v4 (Gemma focus batch, product sets C and D)
+
+v4 adds the product team's hand-written sets C and D (train and dev rows only; see
+`data/product/README.md`) and one Gemma batch. Product dev rows pick checkpoints but are kept out
+of the select-half scores that rank runs, so real-text dev is unchanged from v3: v4 runs are judged
+against the v3 champion and must hold its real-text score and critical fields.
+
+v4's Gemma batch was written by Gemma 4 31B (open weights, on Modal) and checked blind by Phi-4.
+When Phi-4 disagrees on one or two fields, those fields are masked (dropped from the labels, so
+they train nothing) rather than the row being thrown out; a disputed `is_request` or three or
+more disputed fields rejects the row. Masking can lose labels but never adds a wrong one.
+
+- **b0005-focus-gemma:** the four v3 focus categories. 322 of 600 kept (278 rejected, 75 of them
+  cut-off JSON). 274 kept rows have at least one masked field: hazards 101, request_kind 84,
+  location_type 80, needs 72, vulnerable 46, people_count 37. Caveat: Phi-4 often misses
+  "device without power" (more so in Spanish), so the device hazard is masked in 57 of 93
+  device rows. The batch still adds device text; the label is simply not taught on those rows.
+  When a masked field has spans (a count's COUNT, a need's NEED_DURATION), the row's spans
+  become unknown too, so the token head never learns a disputed span (19 rows).
+- **Vague messages:** short messages whose right answer is "unsure" (soft `is_request` 0.5).
+  They carry no hard `is_request`, so a yes/no verifier could never reject one; their verifier
+  instead answers needs_help / no_help / cannot_tell, and only cannot_tell keeps the row.
+  b0006 was generated before that rule, so its texts are re-checked under it and land in a later
+  data version (synthetic only, so real-text dev stays the same as v4).
+
 ## Known gaps
 
 - Public data is English only. Spanish and mixed text come from synthetic data alone.

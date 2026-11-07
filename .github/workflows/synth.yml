@@ -21,6 +21,9 @@ on:
         type: choice
         options: [focus, vague, plain]
         default: focus
+      reverify:
+        description: "Optional: an earlier batch name whose generations to re-check (no new text)"
+        default: ""
 
 permissions:
   contents: write
@@ -60,10 +63,11 @@ jobs:
           N: ${{ inputs.n }}
           SEED: ${{ inputs.seed }}
           MODE: ${{ inputs.mode }}
+          REVERIFY: ${{ inputs.reverify }}
         run: |
           set -eo pipefail
           modal run modal_jobs/synth.py --name "$NAME" --n "$N" --seed "$SEED" --mode "$MODE" \
-            | tee "$RUNNER_TEMP/synth.txt"
+            --reverify "$REVERIFY" | tee "$RUNNER_TEMP/synth.txt"
           grep -E "^kept [0-9]+" "$RUNNER_TEMP/synth.txt" >> "$GITHUB_STEP_SUMMARY" || true
       - name: Push the batch to synth/<name>
         env:

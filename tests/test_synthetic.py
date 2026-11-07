@@ -19,7 +19,7 @@ def test_spec_is_deterministic():
 
 def test_specs_cover_every_label():
     specs = [S.sample_spec(s) for s in range(3000)]
-    assert {s.lang for s in specs} == set(L.LANGS)
+    assert {s.lang for s in specs} == set(L.SYNTH_LANGS)
     assert {s.request_kind for s in specs} == set(L.REQUEST_KINDS)
     assert {s.location_type for s in specs} == set(L.LOCATION_TYPES)
     assert {h for s in specs for h in s.hazards} == set(L.HAZARD_KINDS)
@@ -129,6 +129,7 @@ def test_vague_specs_become_soft_labeled_records():
     from rescue_tagger.data import synthetic as S
 
     spec = S.sample_vague_spec(320001)
+    spec.location_type, spec.location_hint = "none", None
     assert spec.vague and not (spec.hazards or spec.vulnerable or spec.needs or spec.people_count)
     assert "TOO VAGUE" in S.build_prompt(spec)
     spec.location_type = "none"
@@ -181,3 +182,50 @@ def test_a_few_disagreeing_fields_are_masked_not_rejected(monkeypatch):
     assert "people_count" not in rec and "gold_extracted" not in rec
     clean = S.apply_verdict(fresh(), agree, "microsoft/phi-4")["record"]
     assert "masked" not in clean["meta"] and "gold_extracted" in clean
+
+
+def _agreeing_verdict(rec):
+    lab = rec["labels"]
+    return {"is_request": lab.get("is_request", True), "is_stale_post": lab["is_stale_post"],
+            "request_kind": lab.get("request_kind", "other"),
+            "location_type": lab["location_type"],
+            "hazards": [k for k, v in lab["hazards"].items() if v],
+            "vulnerable": [k for k, v in lab["vulnerable"].items() if v],
+            "needs": [k for k, v in lab["needs"].items() if v],
+            "people_count": rec.get("people_count")}
+
+
+def test_masked_count_drops_spans_so_the_token_head_learns_nothing_from_it():
+    from rescue_tagger.data import synthetic as S
+
+    spec = S.sample_focus_spec(300001)
+    spec.location_type, spec.people_count, spec.location_hint = "none", 2, None
+    text = "There are 2 of us here and we need help"
+    gen = {"text": text, "LOCATION": None, "COUNT": "2 of us", "TIME": None, "CONTACT": None,
+           "NEED_DURATION": dict.fromkeys(S.L.NEED_KINDS)}
+    rec = S.build_record(spec, gen, "google/gemma-4-31B-it")
+    assert any(sp["label"] == "COUNT" for sp in rec["spans"])
+    v = {**_agreeing_verdict(rec), "people_count": 3}
+    out = S.apply_verdict(rec, v, "microsoft/phi-4")["record"]
+    assert out["spans"] is None and "people_count" not in out
+
+    rec = S.build_record(spec, gen, "google/gemma-4-31B-it")
+    wrong = [k for k in S.L.LOCATION_TYPES if k != "none"][0]
+    out = S.apply_verdict(rec, {**_agreeing_verdict(rec), "location_type": wrong},
+                          "microsoft/phi-4")["record"]
+    assert out["spans"]  # a head without spans keeps them
+
+
+def test_vague_rows_are_kept_only_when_the_verifier_cannot_tell():
+    from rescue_tagger.data import synthetic as S
+
+    spec = S.sample_vague_spec(320001)
+    spec.location_type, spec.location_hint = "none", None
+    gen = {"text": "idk whats going on by the bayou", "LOCATION": None, "COUNT": None,
+           "TIME": None, "CONTACT": None, "NEED_DURATION": dict.fromkeys(S.L.NEED_KINDS)}
+    for answer, kept in (("cannot_tell", True), ("needs_help", False), ("no_help", False)):
+        rec = S.build_record(spec, gen, "google/gemma-4-31B-it")
+        v = {**_agreeing_verdict(rec), "help": answer}
+        assert ("record" in S.apply_verdict(rec, v, "microsoft/phi-4")) is kept
+    rec = S.build_record(spec, gen, "google/gemma-4-31B-it")
+    assert "error" in S.apply_verdict(rec, _agreeing_verdict(rec), "microsoft/phi-4")

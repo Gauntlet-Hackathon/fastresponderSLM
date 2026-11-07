@@ -93,9 +93,18 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str],
 
     reports: dict = {}
     dev = "data/processed/dev.jsonl"
-    score("dev_real", dev, "--half", "select", "--exclude-source", "synthetic")
+    # Product dev rows pick checkpoints (all of them), so they stay out of the select half that
+    # ranks runs; they have their own report below.
+    nop = ("--exclude-source", "product")
+    score("dev_real", dev, "--half", "select", "--exclude-source", "synthetic", *nop)
     score("dev_synthetic", dev, "--half", "select", "--source", "synthetic")
-    score("dev_rubric", dev, "--half", "select", "--exclude-source", "humaid")
+    score("dev_rubric", dev, "--half", "select", "--exclude-source", "humaid", *nop)
+    if Path("data/product/rescue_eval_train_dev.jsonl").exists():
+        # Product team's dev rows (sets C and D), head by head: their requested report.
+        sh("python", "-m", "rescue_tagger.product_eval", "--model", best,
+           "--out", f"{out_dir}/eval_product_dev.json")
+        reports["product_dev"] = json.loads(
+            Path(f"{out_dir}/eval_product_dev.json").read_text())[best]
     if final:
         reads = Path("/runs/eval_reads.jsonl")
         for name, data, extra in (("test_real", "data/processed/test.jsonl",

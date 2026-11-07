@@ -328,5 +328,8 @@ def test_v2_seed_noise_carries_over_to_v3(tmp_path):
     v3["config"]["data_version"] = 3
     assert seed_spread(summarize(v3), tmp_path) is not None
     v4 = _result("d", real=0.82)
-    v4["config"]["data_version"] = 4
-    assert seed_spread(summarize(v4), tmp_path) is None
+    v4["config"]["data_version"] = 4   # v4 also only added synthetic rows
+    assert seed_spread(summarize(v4), tmp_path) is not None
+    v5 = _result("e", real=0.82)
+    v5["config"]["data_version"] = 5   # not declared same: no carry-over
+    assert seed_spread(summarize(v5), tmp_path) is None

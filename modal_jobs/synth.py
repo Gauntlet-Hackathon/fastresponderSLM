@@ -12,6 +12,7 @@ for the GitHub workflow to commit. Launched by .github/workflows/synth.yml.
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -102,7 +103,7 @@ def serve(model: str) -> subprocess.Popen:
               volumes={"/runs": runs, "/root/.cache/huggingface": hf_cache},
               secrets=[modal.Secret.from_dict({"HF_TOKEN": os.environ.get("HF_TOKEN", "")})])
 def generate(name: str, n: int, seed: int, mode: str, gen_model: str,
-             verify_model: str) -> dict[str, str]:
+             verify_model: str, reverify: str = "") -> dict[str, str]:
     os.chdir(REMOTE_ROOT)
     os.environ.update({"OPENAI_BASE_URL": f"http://localhost:{PORT}/v1",
                        "OPENAI_SLM_API_KEY": "local"})
@@ -114,13 +115,25 @@ def generate(name: str, n: int, seed: int, mode: str, gen_model: str,
         print("+", " ".join(args), flush=True)
         subprocess.run([sys.executable, "-m", "rescue_tagger.data.synthetic", *args], check=True)
 
-    proc = serve(gen_model)
-    try:
-        run("--n", str(n), "--seed", str(seed), "--out", str(raw), "--gen-model", gen_model,
-            "--verify-model", "", "--workers", "32", *MODES[mode])
-    finally:
-        stop(proc)
-    hf_cache.commit()
+    if reverify:
+        # Re-check an earlier batch's unverified generations with the current verifier rules
+        # (no generation, so only the verifier's GPU time is spent).
+        if reverify == name:
+            raise SystemExit("reverify needs a new batch name, not the source batch's")
+        src = Path(f"/runs/synth/{reverify}")
+        if not (src / "raw.jsonl").exists():
+            raise SystemExit(f"no raw generations for {reverify}")
+        shutil.copy(src / "raw.jsonl", raw)
+        if (src / "raw.rejected.jsonl").exists():
+            shutil.copy(src / "raw.rejected.jsonl", out / "raw.rejected.jsonl")
+    else:
+        proc = serve(gen_model)
+        try:
+            run("--n", str(n), "--seed", str(seed), "--out", str(raw), "--gen-model", gen_model,
+                "--verify-model", "", "--workers", "32", *MODES[mode])
+        finally:
+            stop(proc)
+        hf_cache.commit()
     proc = serve(verify_model)
     try:
         run("--verify-file", str(raw), "--verify-model", verify_model, "--out",
@@ -137,10 +150,10 @@ def generate(name: str, n: int, seed: int, mode: str, gen_model: str,
 
 @app.local_entrypoint()
 def main(name: str, n: int = 30, seed: int = 300000, mode: str = "focus",
-         gen_model: str = GEN_MODEL, verify_model: str = VERIFY_MODEL) -> None:
+         gen_model: str = GEN_MODEL, verify_model: str = VERIFY_MODEL, reverify: str = "") -> None:
     if mode not in MODES:
         raise SystemExit(f"mode must be one of {sorted(MODES)}")
-    res = generate.remote(name, n, seed, mode, gen_model, verify_model)
+    res = generate.remote(name, n, seed, mode, gen_model, verify_model, reverify)
     Path(f"{name}.jsonl").write_text(res["kept"])
     Path(f"{name}.rejected.jsonl").write_text(res["rejected"])
     print(f"kept {len(res['kept'].splitlines())}, rejected {len(res['rejected'].splitlines())}")
