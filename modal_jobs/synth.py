@@ -58,6 +58,10 @@ def stop(proc: subprocess.Popen) -> None:
         if used.returncode == 0 and all(int(x) < 2000 for x in used.stdout.split()):
             return
         time.sleep(5)
+    try:  # the server exited but its engine child hung: kill what is left of the group
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
     raise RuntimeError("GPU memory was not released after stopping vLLM")
 
 
