@@ -8,10 +8,10 @@ team's eval sets, given to us on 2026-11-07 (100 rows; set B added to the first 
 - Set C, hard cases (40): typos, Spanish and Vietnamese, landmark-only locations, reposts, sarcasm,
   several households in one post. Set D, abstain cases (27): no usable location, conflicting
   headcounts, possible pranks, unclear requests or hazards.
-- `split: train` (33) is gradient data. `split: dev` (34) only picks checkpoints (half the
+- `split: train` (50) is gradient data. `split: dev` (50) only picks checkpoints (half the
   checkpoint score, `checkpoint_product_weight`) and is the head-by-head report
   (`python -m rescue_tagger.product_eval`).
-- The product team holds back 102 more rows from these sets as the scored test split. They are not
+- The product team holds back 151 more rows from these sets as the scored test split. They are not
   here and must never be recreated. The leak check still reads the product's eval files, so any of
   our rows that resembles a held-back row is dropped (C-049), and so is any row describing the same
   household as a held-back row (`gold_duplicate_group`: C-058 dev, C-059 train). A dev row of the
