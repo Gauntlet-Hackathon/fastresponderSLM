@@ -66,6 +66,10 @@ def summarize(result: dict[str, Any]) -> dict[str, Any]:
         "gap": None if synth_same is None or real_score is None
         else round(synth_same - real_score, 4),
         "critical": {k: both.get(k) for k in CRITICAL},
+        # Real-text dev only: identical across data versions in REAL_DEV_SAME, so these can be
+        # checked against the previous version's champion at a hand-off.
+        "critical_real": {k: real.get(k) for k in CRITICAL},
+        "n_real": {k: field_n(real, k) for k in CRITICAL},
         "n": {k: field_n(both, k) for k in (*CRITICAL, *(k for k in both if k.endswith("_ece")))},
         "ece": {k: v for k, v in both.items() if k.endswith("_ece")},
         "latency_ms": both.get("latency_median_ms"),
@@ -191,28 +195,53 @@ def compare(candidate: Path, champion: Path, runs_dir: Path | None = None,
     result = json.loads(candidate.read_text())
     cand = summarize(result)
     champ = json.loads(champion.read_text()) if champion.exists() else None
-    floor_fail = None
+    floor_fails: list[str] = []
+    held: list[str] = []
+    previous = None
     if champ is not None and champ.get("data_version") != cand["data_version"]:
         # Scores on different dev labels aren't comparable; the first run on the new labels
         # becomes the baseline (the old champion stays on record in its decision). When only the
-        # synthetic rows changed, real text still is: the new baseline must hold the old score.
+        # synthetic rows changed, real text still is: the new baseline must hold the old score
+        # and the old real-text critical fields.
+        previous = champ["run"]
         if (champ.get("data_version"), cand["data_version"]) in REAL_DEV_SAME:
             old_spread = seed_spread(champ, runs_dir)
             tol = min(max(MAX_DROP, 2 * old_spread), MAX_NEED) if old_spread else MAX_DROP
             c, b = cand["real_score"], champ.get("real_score")
-            if c is not None and b is not None and b - c > tol:
-                floor_fail = (f"real-text score {c} vs {b} on the previous data version: "
-                              f"drop {b - c:.4f} is past {tol:.4f}")
+            if c is not None and b is not None:
+                msg = f"real-text score {c} vs {b} on the previous data version"
+                if b - c > tol:
+                    floor_fails.append(f"{msg}: drop {b - c:.4f} is past {tol:.4f}")
+                else:
+                    held.append(f"held {msg} (change {c - b:+.4f}, allowed drop {tol:.4f})")
+            old_crit = champ.get("critical_real") or {}
+            if not old_crit:
+                held.append("previous champion has no real-text critical fields recorded; "
+                            "not checked")
+            for k in CRITICAL:
+                c, b = cand.get("critical_real", {}).get(k), old_crit.get(k)
+                if c is None or b is None:
+                    continue
+                n = max(x for x in ((champ.get("n_real") or {}).get(k),
+                                    (cand.get("n_real") or {}).get(k), 0) if x is not None)
+                ktol = min(max(MAX_DROP, noise(b, n if 0 < n < SMALL_N else None)),
+                           MAX_DROP_TOL)
+                if b - c > ktol:
+                    floor_fails.append(f"real-text {k} dropped {b:.4f} -> {c:.4f} on the "
+                                       f"previous data version (past noise {ktol:.4f})")
         champ = None
     spread = seed_spread(cand, runs_dir)
     ok, reasons = gates(cand, champ, spread)
-    if floor_fail:
-        ok, reasons = False, [r for r in reasons if "baseline" not in r] + [floor_fail]
+    if floor_fails:
+        ok, reasons = False, [r for r in reasons if "baseline" not in r] + floor_fails
+    else:
+        reasons = reasons + held
     if result["config"].get("purpose") == "seed" and ok:
         # A seed repeat measures run-to-run noise; promoting the luckiest seed would bake that
         # noise into the bar every later run has to beat.
         ok, reasons = False, ["seed repeat: measures noise, never promoted"]
-    decision = {"candidate": cand, "champion": champ and champ["run"], "seed_spread": spread,
+    decision = {"candidate": cand, "champion": champ and champ["run"],
+                "previous_version_champion": previous, "seed_spread": spread,
                 "promote": ok, "reasons": reasons,
                 "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     if ok and promote:
