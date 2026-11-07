@@ -100,11 +100,16 @@ def next_action(queue: dict[str, Any], st: State, hhmm: str | None = None) -> di
     if not pending:
         return {"action": "stop" if not st.active else "wait",
                 "why": "queue finished" if not st.active else "last runs still going"}
-    if len(st.active) >= max_parallel:
-        return {"action": "wait", "why": f"{len(st.active)} run(s) in progress"}
     if hhmm and in_quiet_window(queue, hhmm):
         return {"action": "wait", "why": f"morning test-set window ({hhmm} UTC)"}
     item = pending[0]
+    if len(st.active) >= max_parallel:
+        # Seed repeats are never promoted and only measure noise at a fixed setting, so up to
+        # `seed_parallel` of them may run beside the main run instead of waiting their turn.
+        seeds = [i for i in pending if i.get("purpose") == "seed"]
+        if not seeds or len(st.active) >= max_parallel + queue.get("seed_parallel", 0):
+            return {"action": "wait", "why": f"{len(st.active)} run(s) in progress"}
+        item = seeds[0]
     overrides = dict(item.get("overrides", {}))
     if item.get("purpose"):
         overrides["purpose"] = item["purpose"]

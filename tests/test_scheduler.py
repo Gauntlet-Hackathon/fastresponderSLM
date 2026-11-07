@@ -104,3 +104,15 @@ def test_backbone_baselines_do_not_count_as_rejections():
                         *Q["items"][3:]]}
     act = next_action(q, st(decisions={"base": dec(True), "lr": dec(False), "drop": dec(False)}))
     assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-ep"
+
+
+def test_seed_repeat_runs_beside_the_main_run_when_allowed():
+    q = {**Q, "seed_parallel": 1}
+    act = next_action(q, st(decisions={"base": dec(True)}, active=["lr"]))
+    assert act["action"] == "launch" and act["inputs"]["run_name"] == "loop-n1-seed7"
+    assert next_action(q, st(decisions={"base": dec(True)}, active=["lr", "seed7"]))["action"] \
+        == "wait"
+    assert next_action(Q, st(decisions={"base": dec(True)}, active=["lr"]))["action"] == "wait"
+    # no seed pending: wait
+    assert next_action(q, st(decisions={"base": dec(True), "seed7": dec(False)},
+                             active=["lr"]))["action"] == "wait"
