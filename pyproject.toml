@@ -19,6 +19,11 @@ data = [
   "huggingface-hub>=0.26",
 ]
 
+# The Opus baseline (rescue_tagger.llm_baseline).
+llm = [
+  "anthropic>=2.0",
+]
+
 # Training, calibration and inference.
 train = [
   "torch>=2.6",
@@ -44,6 +49,10 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+# The edge-case list is data: one case per line reads better than wrapped calls.
+"evals/make_edge_cases.py" = ["E501", "E402", "I001", "E701", "E702"]
 
 [tool.pytest.ini_options]
 addopts = "-m 'not slow'"

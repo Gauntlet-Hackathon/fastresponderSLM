@@ -210,3 +210,35 @@ def sample(run: str, text: str) -> None:
     import json
 
     print(json.dumps(extract_sample.remote(run, text), indent=2, ensure_ascii=False))
+
+
+@app.function(cpu=8, timeout=2 * 60 * 60, volumes={"/runs": runs},
+              secrets=[modal.Secret.from_dict({"HF_TOKEN": os.environ.get("HF_TOKEN", "")})])
+def compare_run(run: str) -> str:
+    """Our model against the stored Opus outputs (results/llm/) on the fixed comparison rows.
+    Reads test and Harvey, so each call is logged as an eval read; it is a report, never a
+    selection signal."""
+    import subprocess
+
+    from rescue_tagger.loop import log_eval_read
+
+    os.chdir(REMOTE_ROOT)
+
+    def sh(*cmd: str) -> None:
+        print("+", " ".join(cmd), flush=True)
+        subprocess.run(cmd, check=True)
+
+    sh("git", "clone", "--depth", "1",
+       "https://github.com/Gauntlet-Hackathon/gauntletvshackathon", "/tmp/eval_repo")
+    sh("python", "-m", "rescue_tagger.data.build", "--config", "configs/data.yaml")
+    sh("python", "-m", "rescue_tagger.compare", "--slm", f"/runs/{run}/best",
+       "--out", f"/runs/{run}/compare.json")
+    for name in ("test", "harvey"):
+        log_eval_read(Path("/runs/eval_reads.jsonl"), f"compare:{run}", name)
+    runs.commit()
+    return Path(f"/runs/{run}/compare.md").read_text()
+
+
+@app.local_entrypoint()
+def compare(run: str) -> None:
+    print(compare_run.remote(run))
