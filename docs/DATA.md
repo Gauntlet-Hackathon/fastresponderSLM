@@ -178,6 +178,9 @@ more disputed fields rejects the row. Masking can lose labels but never adds a w
   pregnant 9, elderly 9, disabled 3) at confidence 0.5 or more. Spans are left unknown.
 - Opus agrees with the source's is_request label on 1,796 of 2,277 rows (79%); the rest are
   mostly donation appeals and news that HumAID/Munro call requests and the rubric does not.
+- `is_stale_post` is left unknown on distill rows: the rubric calls a post naming "a past storm"
+  stale, so Opus marked 625 live-posted archive tweets stale. A distilled row whose original
+  source is turned off (e.g. HumAID for commercial weights) is dropped too.
 - Real dev keeps the source labels, so a v10 model may score a little lower on real-dev
   is_request even when it follows the rubric better.
 - Share of each epoch: synthetic 0.40, Munro 0.27, HumAID 0.18, distill 0.13, product 0.02.

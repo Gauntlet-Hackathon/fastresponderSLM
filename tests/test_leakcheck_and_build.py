@@ -96,6 +96,7 @@ def test_distilled_rows_replace_their_originals(tmp_path, monkeypatch):
     rows = [orig, {"id": "munro:train:2", "text": "x", "split": "train", "source": "munro"}]
     out = B.merge_distilled(rows, tmp_path, "d/*.jsonl")
     assert [r["id"] for r in out] == ["munro:train:2", "distill:munro:train:1"]
+    assert B.merge_distilled(rows[1:], tmp_path, "d/*.jsonl") == rows[1:]   # source off
     bad = [{**orig, "split": "test"}]
     import pytest
     with pytest.raises(ValueError):

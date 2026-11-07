@@ -11,8 +11,11 @@ test, Harvey, edge or product rows, and writes them as records with source "dist
 trained on with two different labels. The deployed model stays offline: Opus is a teacher only.
 
 Labels: is_request (soft 0.5 when Opus is below 0.6 confident, the rubric's "unsure"), request_kind
-(requests only), hazards and vulnerable kinds at confidence >= 0.5, needs, location_type,
-is_stale_post and people_count. Spans are left unknown (Opus quotes only some of them).
+(requests only), hazards and vulnerable kinds at confidence >= 0.5, needs, location_type and
+people_count. Spans are left unknown (Opus quotes only some of them). is_stale_post is left
+unknown: the rubric calls a post naming "a past storm" stale, and seen from today every archived
+Dorian or Kerala tweet names one, though it was posted live; that label would teach "named storm
+means stale".
 """
 
 from __future__ import annotations
@@ -54,7 +57,6 @@ def to_record(src: dict[str, Any], pay: dict[str, Any]) -> dict[str, Any]:
                               for i in pay["vulnerable"]) for k in L.VULNERABLE_KINDS},
         "needs": {k: any(i["kind"] == k for i in pay["needs"]) for k in L.NEED_KINDS},
         "location_type": pay["location"]["type"],
-        "is_stale_post": bool(pay["time_ref"]["is_stale_post"]),
     }
     rec: dict[str, Any] = {
         "id": f"distill:{src['id']}", "text": src["text"], "lang": src.get("lang", "en"),

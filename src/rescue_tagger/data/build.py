@@ -91,8 +91,12 @@ def relabel_requests(rec: dict[str, Any], src: dict[str, Any], eval_copy: bool =
 def merge_distilled(rows: list[dict[str, Any]], root: Path, pattern: str
                     ) -> list[dict[str, Any]]:
     """Opus rubric labels for real Munro/HumAID train tweets (rescue_tagger.data.distill)
-    replace the original row, so no text is trained with two different labels."""
-    distilled = [rec for p in sorted(glob.glob(str(root / pattern))) for rec in read_jsonl(Path(p))]
+    replace the original row, so no text is trained with two different labels. A distilled row
+    whose original is not loaded (its source is turned off, e.g. HumAID for commercial weights)
+    is dropped with it."""
+    loaded = {r["id"] for r in rows}
+    distilled = [rec for p in sorted(glob.glob(str(root / pattern))) for rec in read_jsonl(Path(p))
+                 if rec["meta"]["original_id"] in loaded]
     originals = {rec["meta"]["original_id"] for rec in distilled}
     clash = [r["id"] for r in rows if r["id"] in originals and r["split"] != "train"]
     if clash:
