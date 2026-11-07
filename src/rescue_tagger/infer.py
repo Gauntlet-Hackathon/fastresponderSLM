@@ -22,7 +22,7 @@ from typing import Any
 import torch
 
 from rescue_tagger import labels as L
-from rescue_tagger.durations import nearest_need, parse_hours
+from rescue_tagger.durations import needs_for_span, parse_hours
 from rescue_tagger.model import RescueTagger
 from rescue_tagger.records import validate_extracted
 
@@ -148,11 +148,18 @@ class Extractor:
 
         need_kinds = [kind for kind, v in p["needs"].items() if v >= NEED_MIN]
         hours: dict[str, float | None] = dict.fromkeys(need_kinds)
+        # Each need takes the duration of its closest span; one span can cover a whole list of
+        # needs ("no food or water for 2 days"). Equal distances keep the longer duration.
+        closest: dict[str, tuple[int, float]] = {}
         for sp in (s for s in spans if s["label"] == "NEED_DURATION"):
-            kind = nearest_need(text, sp["start"], sp["end"], need_kinds)
             h = parse_hours(text[sp["start"]:sp["end"]])
-            if kind is not None and h is not None:
-                hours[kind] = max(h, hours[kind] or 0)
+            if h is None:
+                continue
+            for kind, d in needs_for_span(text, sp["start"], sp["end"], need_kinds):
+                if kind not in closest or (d, -h) < (closest[kind][0], -closest[kind][1]):
+                    closest[kind] = (d, h)
+        for kind, (_, h) in closest.items():
+            hours[kind] = h
 
         time_span = best("TIME")
         stale = p["is_stale_post"]

@@ -23,6 +23,9 @@ items:
     overrides: {source_share: {synthetic: 0.35, munro: 0.4, humaid: 0.25}}
   # Training settings, one at a time (Laya is the primary model).
   - {name: laya-lr2e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 2.0e-5}}
+  # Data v3: the focus batch (medical devices, shared need durations, old posts, indirect
+  # vulnerability). Becomes the v3 baseline only if it holds the v2 real-text score.
+  - {name: laya-v3-focus, config: configs/train_laya.yaml}
   - {name: laya-lr5e-5, config: configs/train_laya.yaml, overrides: {lr_encoder: 5.0e-5}}
   - {name: laya-dropout0.2, config: configs/train_laya.yaml, overrides: {dropout: 0.2}}
   - {name: laya-epochs6, config: configs/train_laya.yaml, overrides: {epochs: 6}}

@@ -4,7 +4,7 @@ backbone_revision: abc32620dd4f6ab06f5fbe905dc25f310618e09f   # pinned
 data_dir: data/processed
 # Bump when training/dev labels change (configs/data.yaml): runs on different label versions are
 # never compared, grouped for seed noise, or promoted over each other.
-data_version: 2
+data_version: 3  # v3: + b0003-focus synthetic batch (real-text dev unchanged)
 out_dir: outputs/mmbert_small
 seed: 13
 max_length: 256
