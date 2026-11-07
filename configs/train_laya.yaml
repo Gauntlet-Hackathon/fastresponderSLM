@@ -21,5 +21,5 @@ log_every: 100
 eval_every_steps: 750       # dev check twice per epoch
 early_stop_patience: 3      # stop after 3 dev checks with no new best
 source_share: {synthetic: 0.48, munro: 0.3, humaid: 0.2, product: 0.02}
-checkpoint_product_weight: 0.5   # product dev rows (sets C, D) get half the checkpoint score
+checkpoint_product_weight: 0.2   # product dev rows: 20% of the checkpoint score, relative to the first check
 head_weights: {tokens: 1.0}

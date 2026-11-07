@@ -333,3 +333,22 @@ def test_v2_seed_noise_carries_over_to_v3(tmp_path):
     v6 = _result("e", real=0.82)
     v6["config"]["data_version"] = 6   # not declared same: no carry-over
     assert seed_spread(summarize(v6), tmp_path) is None
+
+
+def test_latency_and_consistency_use_the_timing_extractor():
+    from rescue_tagger import evaluate as E
+
+    class Ex:
+        def __init__(self, device):
+            self.device, self.n = device, 0
+
+        def extract(self, text):
+            self.n += 1
+            return {"is_request": {"value": False, "confidence": 0.9}}
+
+    gpu, cpu = Ex("cuda"), Ex("cpu")
+    rows = [{"text": str(i), "labels": {}, "spans": None} for i in range(3)]
+    rep = E.evaluate(gpu, rows, consistency_n=2, repeats=3, timing_ex=cpu)
+    assert gpu.n == 3  # one scoring pass
+    assert cpu.n == 3 * (1 + E.LATENCY_PASSES) + 2 * 3  # timing passes + consistency
+    assert rep["scored_on"] == "cuda"
