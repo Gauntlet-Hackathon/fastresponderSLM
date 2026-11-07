@@ -7,7 +7,7 @@ max_runs: 10         # trained runs; re-scoring an existing model does not count
 max_rejections: 3    # rejected runs in a row before stopping (seed repeats excluded)
 max_parallel: 1      # one at a time, so each run is judged against the true current best
 launch_cutoff_utc: "10:30"   # no new launches until the morning test-set check has run
-resume_utc: "14:30"
+resume_utc: "15:00"         # after the last morning-check attempt (14:30)
 items:
   # Baselines: fresh runs on the new pipeline (checkpoint picked on the calib half of dev only).
   # The two pre-loop runs are not reused: their checkpoints saw all of dev.

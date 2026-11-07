@@ -58,6 +58,7 @@ def summarize(result: dict[str, Any]) -> dict[str, Any]:
         "consistency_changed_pct": both.get("consistency_changed_pct"),
         "signature": signature(result["config"]),
         "reused": bool(result.get("reused_weights_from")),
+        "backbone": result["config"].get("backbone"),
     }
 
 
@@ -68,19 +69,22 @@ def signature(cfg: dict[str, Any]) -> str:
 
 
 def seed_spread(candidate: dict[str, Any], runs_dir: Path | None) -> float | None:
-    """Standard deviation of real-text score across finished runs that differ only by seed."""
+    """Run-to-run noise for the candidate's backbone: the largest standard deviation of real-text
+    score within any group of finished runs that differ only by seed (the seed repeats of the
+    baseline). It applies to every experiment on that backbone, not only to seed repeats."""
     if runs_dir is None:
         return None
-    scores = []
+    groups: dict[str, list[float]] = {}
     for p in sorted(runs_dir.glob("*/result.json")):
         try:
             s = summarize(json.loads(p.read_text()))
         except (KeyError, json.JSONDecodeError):
             continue  # runs from before dev reports existed
-        if (s["signature"] == candidate["signature"] and s["real_score"] is not None
+        if (s["backbone"] == candidate["backbone"] and s["real_score"] is not None
                 and not s["reused"]):
-            scores.append(s["real_score"])
-    return round(statistics.stdev(scores), 4) if len(scores) >= 2 else None
+            groups.setdefault(s["signature"], []).append(s["real_score"])
+    spreads = [statistics.stdev(v) for v in groups.values() if len(v) >= 2]
+    return round(max(spreads), 4) if spreads else None
 
 
 def gates(cand: dict[str, Any], champ: dict[str, Any] | None,

@@ -100,3 +100,18 @@ def test_seed_repeats_are_never_promoted(tmp_path):
     champ.write_text(json.dumps(summarize(_result("c", real=0.80))))
     d = compare(tmp_path / "r.json", champ, None, promote=True)
     assert not d["promote"] and json.loads(champ.read_text())["run"] == "c"
+
+
+def test_baseline_seed_noise_applies_to_other_experiments(tmp_path):
+    for i, (real, seed) in enumerate([(0.80, 1), (0.83, 2)]):
+        d = tmp_path / f"s{i}"
+        d.mkdir()
+        (d / "result.json").write_text(json.dumps(_result(f"s{i}", real=real, seed=seed)))
+    exp = _result("lr", real=0.84, synth=0.97)
+    exp["config"]["lr_encoder"] = 2e-5  # different config, same backbone
+    (tmp_path / "lr.json").write_text(json.dumps(exp))
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(summarize(_result("s0", real=0.80))))
+    d = compare(tmp_path / "lr.json", champ, tmp_path)
+    assert d["seed_spread"] is not None
+    assert not d["promote"]  # +0.04 is below 2x the ~0.021 spread
