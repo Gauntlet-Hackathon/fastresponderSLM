@@ -8,6 +8,10 @@ on:
       run:
         description: "Run name on the Modal volume, e.g. train_mmbert_small-20261107-044430"
         required: true
+      text:
+        description: "If set, print one extracted payload for this message instead of the deep check"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -29,9 +33,14 @@ jobs:
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           RUN: ${{ inputs.run }}
+          TEXT: ${{ inputs.text }}
         run: |
           set -eo pipefail
-          modal run modal_jobs/train.py::diag --run "$RUN" | tee "$RUNNER_TEMP/diagnose.txt"
+          if [ -n "$TEXT" ]; then
+            modal run modal_jobs/train.py::sample --run "$RUN" --text "$TEXT" | tee "$RUNNER_TEMP/diagnose.txt"
+          else
+            modal run modal_jobs/train.py::diag --run "$RUN" | tee "$RUNNER_TEMP/diagnose.txt"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

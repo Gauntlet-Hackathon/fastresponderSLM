@@ -189,3 +189,18 @@ def diag(run: str) -> None:
     import json
 
     print(json.dumps(diagnose_run.remote(run), indent=2, ensure_ascii=False))
+
+
+@app.function(cpu=4, timeout=1800, volumes={"/runs": runs})
+def extract_sample(run: str, text: str) -> dict:
+    """One extracted payload from a finished run's calibrated model (CPU, as in the product)."""
+    from rescue_tagger.infer import Extractor
+
+    return Extractor.load(f"/runs/{run}/best", model_version=run).extract(text)
+
+
+@app.local_entrypoint()
+def sample(run: str, text: str) -> None:
+    import json
+
+    print(json.dumps(extract_sample.remote(run, text), indent=2, ensure_ascii=False))
