@@ -15,6 +15,8 @@ weight_decay: 0.01
 warmup_frac: 0.06
 bf16: true
 log_every: 100
+eval_every_steps: 750       # dev check twice per epoch
+early_stop_patience: 3      # stop after 3 dev checks with no new best
 # Share of each epoch drawn from each source. Synthetic is the only source with every field and
 # all of Spanish, so it gets the largest share despite being the smallest.
 source_share: {synthetic: 0.5, munro: 0.3, humaid: 0.2}

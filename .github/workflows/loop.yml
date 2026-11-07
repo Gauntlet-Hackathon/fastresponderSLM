@@ -1,0 +1,50 @@
+name: loop
+
+# Overnight training loop. Every 30 minutes: launch the next queued experiment if nothing is
+# running and no stop rule has hit (see src/rescue_tagger/scheduler.py). At 12:00 UTC (6 am in
+# Houston in winter): score the best model on the test sets once.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      cmd:
+        description: "tick = launch the next run if due; final = morning test-set check"
+        type: choice
+        options: [tick, final]
+        default: tick
+      dry_run:
+        type: boolean
+        default: false
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: loop
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install modal pyyaml
+      - name: Run scheduler
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: src
+          CMD: ${{ github.event.schedule == '0 12 * * *' && 'final' || inputs.cmd || 'tick' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          FLAG=""
+          if [ "$DRY_RUN" = "true" ]; then FLAG="--dry-run"; fi
+          python -m rescue_tagger.scheduler "$CMD" $FLAG | tee -a "$GITHUB_STEP_SUMMARY"

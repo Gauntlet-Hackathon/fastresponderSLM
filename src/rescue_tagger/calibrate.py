@@ -21,7 +21,7 @@ import torch.nn.functional as F
 from rescue_tagger import labels as L
 from rescue_tagger.features import IGNORE, collate, encode
 from rescue_tagger.model import RescueTagger
-from rescue_tagger.records import read_jsonl
+from rescue_tagger.records import dev_half, read_jsonl
 
 N_BINS = 10
 
@@ -79,10 +79,13 @@ DEFAULT_EXCLUDE = ("humaid",)  # weak labels: donation appeals count as "request
 
 
 def calibrate(model_dir: Path, data: Path,
-              exclude_sources: tuple[str, ...] = DEFAULT_EXCLUDE) -> dict[str, Any]:
-    """Fit on dev rows from sources whose labels match the rubric (not weak-label sources)."""
+              exclude_sources: tuple[str, ...] = DEFAULT_EXCLUDE,
+              half: str | None = None) -> dict[str, Any]:
+    """Fit on dev rows from sources whose labels match the rubric (not weak-label sources).
+    `half="calib"` fits on one fixed half of dev so the other half can score runs honestly."""
     model, tok = RescueTagger.load(model_dir)
-    rows = [r for r in read_jsonl(data) if r["source"] not in exclude_sources]
+    rows = [r for r in read_jsonl(data) if r["source"] not in exclude_sources
+            and (half is None or dev_half(r["id"]) == half)]
     if any(r["split"] == "test" for r in rows):
         raise RuntimeError("refusing to calibrate on test rows")
     d = collect(model, tok, rows)
@@ -126,7 +129,8 @@ def calibrate(model_dir: Path, data: Path,
         temps["tokens"] = fit_temperature(lambda t, z=z, y=y[m]: F.cross_entropy(z / t, y))
 
     (model_dir / "calibration.json").write_text(
-        json.dumps({"temperatures": temps, "fitted_on": str(data), "report": report}, indent=2)
+        json.dumps({"temperatures": temps, "fitted_on": str(data), "half": half,
+                    "report": report}, indent=2)
         + "\n")
     return {"temperatures": temps,
             "ece_after": {h: round(r["ece_after"], 4) for h, r in report.items()}}
@@ -137,8 +141,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("model_dir", type=Path)
     ap.add_argument("--data", type=Path, default=Path("data/processed/dev.jsonl"))
     ap.add_argument("--exclude-sources", nargs="*", default=list(DEFAULT_EXCLUDE))
+    ap.add_argument("--half", choices=["calib", "select"], default=None,
+                    help="fit on one fixed half of dev only")
     args = ap.parse_args(argv)
-    print(json.dumps(calibrate(args.model_dir, args.data, tuple(args.exclude_sources)), indent=2))
+    print(json.dumps(calibrate(args.model_dir, args.data, tuple(args.exclude_sources), args.half),
+                     indent=2))
     return 0
 
 

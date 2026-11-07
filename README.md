@@ -52,6 +52,24 @@ GPU training runs on Modal: Actions -> `train` -> pick a config (needs repo secr
 Environment: `OPENAI_SLM_API_KEY` (synthetic generation), `HF_TOKEN` (dataset download),
 `EVAL_REPO` (optional path to a product-repo checkout, so its eval sets are protected from training).
 
+## Overnight training loop
+
+`.github/workflows/loop.yml` runs every 30 minutes. It launches the next experiment from
+`configs/loop_queue.yaml` on Modal when nothing is running, one change per run, each from the
+original base model. Each run calibrates on one fixed half of dev and is scored on the other half,
+then `rescue_tagger.loop` compares it with the current best model (`/runs/champion.json` on the
+Modal volume) and promotes it only if every gate passes:
+
+- real-text dev score up by at least 0.5 points (and by more than 2x the seed-to-seed spread)
+- no engine-critical field (is_request, needs, vulnerable, location type) down more than 1 point
+- calibration error at most 0.10 per field and not more than 0.02 worse than the best model
+- identical output across repeats, under 100 ms per request
+- the synthetic-vs-real gap no wider than the best model's
+
+The loop stops itself after the run cap, 3 rejections in a row, the gap widening twice, or the same
+run failing twice. At 12:00 UTC it scores the best model on the test sets and Harvey once; every
+such read is logged to `/runs/eval_reads.jsonl`. Test sets are never used to choose between runs.
+
 ## Data rules (non-negotiable)
 
 1. Test splits and the sealed holdout (set E) never enter training. `data/leakcheck.py` drops any

@@ -3,8 +3,9 @@
   modal run modal_jobs/train.py --config configs/train_laya.yaml [--publish]
 
 Launched by .github/workflows/train.yml (repo secrets MODAL_TOKEN_ID, MODAL_TOKEN_SECRET, HF_TOKEN).
-Steps inside the container: build data -> train -> calibrate on dev -> evaluate on test splits ->
-optionally publish to the Hugging Face Hub. Outputs persist in the `rescue-tagger-runs` volume.
+Steps inside the container: build data -> train -> calibrate on one half of dev -> score on the
+other half -> compare with the current best model (/runs/champion.json) -> optionally score the
+test sets (--final) and publish. Outputs persist in the `rescue-tagger-runs` volume.
 """
 
 from __future__ import annotations
@@ -47,11 +48,19 @@ app = modal.App("rescue-tagger", image=image)
     volumes={"/runs": runs},
     secrets=[modal.Secret.from_dict({"HF_TOKEN": os.environ.get("HF_TOKEN", "")})],
 )
-def pipeline(config: str, run_name: str, publish: bool, overrides: list[str]) -> dict:
+def pipeline(config: str, run_name: str, publish: bool, overrides: list[str],
+             final: bool = False, reuse: str = "") -> dict:
+    """Build -> train -> calibrate (dev "calib" half) -> score on the dev "select" half ->
+    compare with the current best model. Test sets and Harvey are scored only when `final` is set,
+    and every such scoring is logged to /runs/eval_reads.jsonl. `reuse` names an earlier run whose
+    trained weights are re-calibrated and re-scored instead of training again."""
     import json
+    import shutil
     import subprocess
 
     import yaml
+
+    from rescue_tagger.loop import compare, log_eval_read
 
     os.chdir(REMOTE_ROOT)
     out_dir = f"/runs/{run_name}"
@@ -65,19 +74,49 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str]) ->
     sh("git", "clone", "--depth", "1",
        "https://github.com/Gauntlet-Hackathon/gauntletvshackathon", "/tmp/eval_repo")
     sh("python", "-m", "rescue_tagger.data.build", "--config", "configs/data.yaml")
-    sh("python", "-m", "rescue_tagger.train", "--config", config, "--set",
-       f"out_dir={out_dir}", *overrides)
     best = f"{out_dir}/best"
-    sh("python", "-m", "rescue_tagger.calibrate", best, "--data", "data/processed/dev.jsonl")
-    reports = {}
-    for name, extra in {"test_all": [], "test_synthetic": ["--source", "synthetic"],
-                        "harvey": []}.items():
-        data = "data/processed/harvey.jsonl" if name == "harvey" else "data/processed/test.jsonl"
+    if reuse:
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        shutil.copytree(f"/runs/{reuse}/best", best, dirs_exist_ok=True)
+    else:
+        sh("python", "-m", "rescue_tagger.train", "--config", config, "--set",
+           f"out_dir={out_dir}", *overrides)
+    sh("python", "-m", "rescue_tagger.calibrate", best, "--data", "data/processed/dev.jsonl",
+       "--half", "calib")
+
+    def score(name: str, data: str, *extra: str) -> None:
         sh("python", "-m", "rescue_tagger.evaluate", best, "--data", data, *extra,
            "--out", f"{out_dir}/eval_{name}.json")
         reports[name] = json.loads(Path(f"{out_dir}/eval_{name}.json").read_text())
-    result = {"run": run_name, "config": yaml.safe_load(Path(config).read_text()),
+
+    reports: dict = {}
+    dev = "data/processed/dev.jsonl"
+    score("dev_real", dev, "--half", "select", "--exclude-source", "synthetic")
+    score("dev_synthetic", dev, "--half", "select", "--source", "synthetic")
+    score("dev_rubric", dev, "--half", "select", "--exclude-source", "humaid")
+    if final:
+        reads = Path("/runs/eval_reads.jsonl")
+        for name, data, extra in (("test_real", "data/processed/test.jsonl",
+                                   ["--exclude-source", "synthetic"]),
+                                  ("test_synthetic", "data/processed/test.jsonl",
+                                   ["--source", "synthetic"]),
+                                  ("harvey", "data/processed/harvey.jsonl", [])):
+            score(name, data, *extra)
+            log_eval_read(reads, run_name, name)
+
+    cfg = yaml.safe_load(Path(config).read_text())
+    for kv in overrides:
+        k, v = kv.split("=", 1)
+        cfg[k] = yaml.safe_load(v)
+    result = {"run": run_name, "config": cfg, "reused_weights_from": reuse or None,
               "eval": reports}
+    history = Path(f"{out_dir}/history.json")
+    if history.exists():
+        result["history"] = json.loads(history.read_text())
+    Path(f"{out_dir}/result.json").write_text(json.dumps(result, indent=2) + "\n")
+    result["decision"] = compare(Path(f"{out_dir}/result.json"), Path("/runs/champion.json"),
+                                 Path("/runs"), promote=True)
+    Path(f"{out_dir}/decision.json").write_text(json.dumps(result["decision"], indent=2) + "\n")
     if publish:
         from rescue_tagger.publish import publish as push
 
@@ -88,10 +127,12 @@ def pipeline(config: str, run_name: str, publish: bool, overrides: list[str]) ->
 
 
 @app.local_entrypoint()
-def main(config: str, run_name: str = "", publish: bool = False, overrides: str = "") -> None:
+def main(config: str, run_name: str = "", publish: bool = False, overrides: str = "",
+         final: bool = False, reuse: str = "") -> None:
     import json
     import time
 
     name = run_name or f"{Path(config).stem}-{time.strftime('%Y%m%d-%H%M%S')}"
-    result = pipeline.remote(config, name, publish, overrides.split() if overrides else [])
+    result = pipeline.remote(config, name, publish, overrides.split() if overrides else [],
+                             final, reuse)
     print(json.dumps(result, indent=2))

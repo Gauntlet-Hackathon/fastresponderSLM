@@ -1,4 +1,5 @@
 name: train
+run-name: train ${{ inputs.run_name || 'manual' }}
 
 # Manual GPU training on Modal. Needs repo secrets MODAL_TOKEN_ID, MODAL_TOKEN_SECRET, HF_TOKEN.
 on:
@@ -15,7 +16,19 @@ on:
         type: boolean
         default: false
       overrides:
-        description: "Space-separated config overrides, e.g. 'epochs=1 steps_per_epoch=200'"
+        description: "Space-separated config overrides, e.g. 'seed=7 lr_encoder=2e-5'"
+        required: false
+        default: ""
+      final:
+        description: "Also score the test sets and Harvey (morning check of the best model only)"
+        type: boolean
+        default: false
+      run_name:
+        description: "Run name on the Modal volume (blank: config name + timestamp)"
+        required: false
+        default: ""
+      reuse:
+        description: "Name of an earlier run whose weights to re-calibrate and re-score (no training)"
         required: false
         default: ""
 
@@ -40,13 +53,20 @@ jobs:
           CONFIG: ${{ inputs.config }}
           OVERRIDES: ${{ inputs.overrides }}
           PUBLISH: ${{ inputs.publish }}
+          FINAL: ${{ inputs.final }}
+          REUSE: ${{ inputs.reuse }}
+          RUN_NAME: ${{ inputs.run_name }}
         run: |
           set -o pipefail
           PUBLISH_FLAG=""
           if [ "$PUBLISH" = "true" ]; then PUBLISH_FLAG="--publish"; fi
-          modal run modal_jobs/train.py --config "$CONFIG" --overrides "$OVERRIDES" $PUBLISH_FLAG \
+          FINAL_FLAG=""
+          if [ "$FINAL" = "true" ]; then FINAL_FLAG="--final"; fi
+          modal run modal_jobs/train.py --config "$CONFIG" --overrides "$OVERRIDES" \
+            --reuse "$REUSE" --run-name "$RUN_NAME" $PUBLISH_FLAG $FINAL_FLAG \
             | tee "$RUNNER_TEMP/result.txt"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: train-result
           path: ${{ runner.temp }}/result.txt
