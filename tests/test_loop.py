@@ -255,6 +255,67 @@ def test_new_synthetic_version_must_hold_the_real_text_score(tmp_path):
             assert any("previous data version" in r for r in d["reasons"])
 
 
+def test_handoff_records_the_held_score_and_previous_champion(tmp_path):
+    old = _result("old", real=0.85)
+    old["config"]["data_version"] = 2
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(summarize(old)))
+    new = _result("new", real=0.845)
+    new["config"]["data_version"] = 3
+    (tmp_path / "new.json").write_text(json.dumps(new))
+    d = compare(tmp_path / "new.json", champ, None)
+    assert d["promote"] and d["previous_version_champion"] == "old"
+    assert any(r.startswith("held real-text score 0.845 vs 0.85") for r in d["reasons"])
+
+
+def test_handoff_checks_real_text_critical_fields(tmp_path):
+    old = _result("old", real=0.85)
+    old["eval"]["dev_real"]["vulnerable_f1"] = 0.70
+    old["config"]["data_version"] = 2
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(summarize(old)))
+    for name, vul, want in (("dropped", 0.60, False), ("kept", 0.695, True)):
+        new = _result(name, real=0.85)
+        new["eval"]["dev_real"]["vulnerable_f1"] = vul
+        new["config"]["data_version"] = 3
+        (tmp_path / f"{name}.json").write_text(json.dumps(new))
+        d = compare(tmp_path / f"{name}.json", champ, None)
+        assert d["promote"] is want, d["reasons"]
+        if not want:
+            assert any("real-text vulnerable_f1 dropped" in r for r in d["reasons"])
+
+
+def test_handoff_from_an_old_champion_without_real_critical_fields(tmp_path):
+    old = summarize(_result("old", real=0.85, crit=None))
+    old.pop("critical_real")
+    old["data_version"] = 2
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(old))
+    new = _result("new", real=0.85)
+    new["config"]["data_version"] = 3
+    (tmp_path / "new.json").write_text(json.dumps(new))
+    d = compare(tmp_path / "new.json", champ, None)
+    assert d["promote"] and any("not checked" in r for r in d["reasons"])
+
+
+def test_handoff_rebuilds_old_champion_fields_from_its_result(tmp_path):
+    old_res = _result("old", real=0.85)
+    old_res["config"]["data_version"] = 2
+    (tmp_path / "old").mkdir()
+    (tmp_path / "old" / "result.json").write_text(json.dumps(old_res))
+    old = summarize(old_res)
+    old.pop("critical_real")
+    champ = tmp_path / "champion.json"
+    champ.write_text(json.dumps(old))
+    new = _result("new", real=0.85)
+    new["eval"]["dev_real"]["needs_f1"] = 0.80   # a per-field drop the rebuilt fields catch
+    new["config"]["data_version"] = 3
+    (tmp_path / "new.json").write_text(json.dumps(new))
+    d = compare(tmp_path / "new.json", champ, tmp_path)
+    assert not d["promote"]
+    assert any("real-text needs_f1 dropped" in r for r in d["reasons"])
+
+
 def test_v2_seed_noise_carries_over_to_v3(tmp_path):
     from rescue_tagger.loop import seed_spread
 

@@ -1,6 +1,6 @@
 """Generate synthetic training data with open-weights models on a Modal GPU (no Claude, no OpenAI).
 
-  modal run modal_jobs/synth.py --name b0004-focus-qwen --n 30 --seed 300000 --mode focus
+  modal run modal_jobs/synth.py --name b0005-focus-gemma --n 30 --seed 300000 --mode focus
 
 A vLLM server (OpenAI-compatible) holds one model at a time. Phase 1: the generator writes messages
 for label-first specs (rescue_tagger.data.synthetic). Phase 2: a model from another family labels
@@ -22,15 +22,15 @@ import modal
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REMOTE_ROOT = "/root/repo"
-GEN_MODEL = "Qwen/Qwen2.5-32B-Instruct"     # Apache-2.0
+GEN_MODEL = "google/gemma-4-31B-it"         # Apache-2.0 (Paawan chose Gemma over Qwen)
 VERIFY_MODEL = "microsoft/phi-4"            # MIT, a different family from the generator
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    # vLLM 0.10.2 reads tokenizer attributes that transformers 5 removed
-    # (all_special_tokens_extended), so pin the 4.x line it was built against.
-    .pip_install("vllm==0.10.2", "transformers==4.56.2", "openai>=1.40", "jsonschema>=4.23",
-                 "referencing>=0.35", "pyyaml>=6.0")
+    # Gemma 4 needs vLLM >= 0.27 (gemma4 model code) and transformers 5; vLLM pins the
+    # transformers range it was built against.
+    .pip_install("vllm==0.31.0", "openai>=2.25,<4", "jsonschema>=4.23", "referencing>=0.35",
+                 "pyyaml>=6.0")
     .env({"PYTHONPATH": f"{REMOTE_ROOT}/src", "HF_HUB_ENABLE_HF_TRANSFER": "0"})
     .add_local_dir(REPO_ROOT, REMOTE_ROOT, ignore=[".venv", ".git", "outputs", "data/raw",
                                                      "data/processed", "**/__pycache__"])
@@ -69,9 +69,15 @@ def stop(proc: subprocess.Popen) -> None:
 
 
 def serve(model: str) -> subprocess.Popen:
-    proc = subprocess.Popen([sys.executable, "-m", "vllm.entrypoints.openai.api_server",
-                             "--model", model, "--port", str(PORT), "--max-model-len", "8192",
-                             "--gpu-memory-utilization", "0.92"], start_new_session=True)
+    args = ["--model", model, "--port", str(PORT), "--max-model-len", "8192",
+            "--gpu-memory-utilization", "0.92"]
+    if "gemma-4" in model.lower():
+        # Gemma 4 checkpoints carry a vision tower; text only frees its memory for
+        # the KV cache. Thinking stays off (the chat template's default), so the constrained
+        # JSON answer starts right away.
+        args.append("--language-model-only")
+    proc = subprocess.Popen([sys.executable, "-m", "vllm.entrypoints.openai.api_server", *args],
+                            start_new_session=True)
     import urllib.request
 
     for _ in range(180):  # up to 30 min for download + load

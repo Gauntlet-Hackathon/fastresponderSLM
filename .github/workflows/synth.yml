@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       name:
-        description: "Batch name, e.g. b0004-focus-qwen"
+        description: "Batch name, e.g. b0005-focus-gemma"
         required: true
       n:
         description: "Specs to try"
