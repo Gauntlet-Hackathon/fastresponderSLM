@@ -79,9 +79,7 @@ def to_record(row: dict[str, Any]) -> dict[str, Any]:
         "source": "product",
         "split": row["split"],
         "labels": labels,
-        # Set B rows carry labelled spans (LOCATION, COUNT, TIME); sets C and D were not labelled.
-        "spans": ([{k: s[k] for k in ("start", "end", "label")} for s in g["spans"]]
-                  if row["set"] in SPAN_SETS else None),
+        "spans": None,
         "people_count": g["people_count"]["value"] or None,
         "need_hours": {n["kind"]: n.get("hours_without") for n in g["needs"]},
         "meta": {"set": row["set"], "product_id": row["id"],
@@ -89,7 +87,35 @@ def to_record(row: dict[str, Any]) -> dict[str, Any]:
     }
     if soft:
         rec["soft_labels"] = soft
+    if row["set"] in SPAN_SETS:
+        rec["spans"], rec["span_unknown"] = _labelled_spans(row["raw_text"], g["spans"],
+                                                            labels["location_type"])
     return rec
+
+
+# Set B labels LOCATION, COUNT and TIME, but not every count or time, and never NEED_DURATION.
+# Unlabelled numbers and time phrases are left unknown to the token head (not taught as "O").
+_UNLABELLED = re.compile(
+    r"(?:\b(?:since|for|been out)\s+)?\b\d+\s*(?:am|pm|hours?|hrs?|days?|months?|years?(?: old)?"
+    r"|percent|kids?|adults?|people|toddlers?|of us)?\b"
+    r"|\b(?:this|last)\s+(?:morning|night|evening|afternoon)\b|\b(?:yesterday|tonight|today)\b", re.I)
+
+
+def _labelled_spans(text: str, gold: list[dict[str, Any]], location_type: str
+                    ) -> tuple[list[dict[str, Any]], list[dict[str, int]]]:
+    """Labelled spans to train on, plus character ranges the token head should not learn from."""
+    spans = [{k: s[k] for k in ("start", "end", "label")} for s in gold]
+    unknown: list[dict[str, int]] = []
+    if location_type == "none":
+        # The engine finds no usable location here, so its words are neither taught as a
+        # location nor as "O".
+        unknown += [{"start": s["start"], "end": s["end"]} for s in spans
+                    if s["label"] == "LOCATION"]
+        spans = [s for s in spans if s["label"] != "LOCATION"]
+    for m in _UNLABELLED.finditer(text):
+        if not any(s["start"] < m.end() and m.start() < s["end"] for s in spans):
+            unknown.append({"start": m.start(), "end": m.end()})
+    return spans, unknown
 
 
 def load(path: Path) -> list[dict[str, Any]]:

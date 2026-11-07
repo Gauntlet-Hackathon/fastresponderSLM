@@ -55,6 +55,12 @@ def encode(rec: dict[str, Any], tokenizer, max_length: int) -> dict[str, Any]:
         token_labels = [IGNORE] * len(offsets)
     else:
         token_labels = char_spans_to_bio(rec["text"], offsets, rec["spans"])
+        # Ranges the labeller left unlabelled (e.g. a count in a row whose other counts are
+        # labelled): an "O" there would teach that a real span is not one, so no loss.
+        for u in rec.get("span_unknown") or []:
+            for i, (s, e) in enumerate(offsets):
+                if s < u["end"] and u["start"] < e and token_labels[i] == L.TAG2ID["O"]:
+                    token_labels[i] = IGNORE
     lab = rec["labels"]
     item: dict[str, Any] = {
         "input_ids": enc["input_ids"],

@@ -63,3 +63,27 @@ def test_rows_sharing_a_household_with_train_or_held_back_rows_are_left_out():
     held = [{"raw_text": "a reworded test message", "gold_duplicate_group": "C-dup-6"},
             {"raw_text": ROWS["C-054"]["raw_text"], "gold_duplicate_group": "C-dup-3"}]
     assert held_back_groups(held, ours) == {"C-dup-6"}
+
+
+def test_set_b_unlabelled_counts_and_times_carry_no_token_loss():
+    from rescue_tagger.features import IGNORE
+    from rescue_tagger.labels import TAG2ID
+
+    rec = to_record(ROWS["B-014"])  # "been out 10 hours" is a duration nobody labelled
+    assert [rec["text"][u["start"]:u["end"]] for u in rec["span_unknown"]] == ["been out 10 hours"]
+
+    class Tok:  # whitespace tokenizer with offsets, enough for encode()
+        def __call__(self, text, **_):
+            import re
+            offs = [(0, 0)] + [m.span() for m in re.finditer(r"\S+", text)] + [(0, 0)]
+            return {"input_ids": list(range(len(offs))), "attention_mask": [1] * len(offs),
+                    "offset_mapping": offs}
+
+    from rescue_tagger.features import encode
+    item = encode(rec, Tok(), 256)
+    words = [None] + rec["text"].split() + [None]
+    tags = dict(zip(words, item["token_labels"], strict=True))
+    assert tags["hours."] == IGNORE and tags["10"] == IGNORE
+    assert tags["Dialysis"] == TAG2ID["O"] and tags["Wycliffe"] == TAG2ID["I-LOCATION"]
+    none_loc = to_record(ROWS["B-059"])  # no usable location: its words are not taught
+    assert all(s["label"] != "LOCATION" for s in none_loc["spans"])
