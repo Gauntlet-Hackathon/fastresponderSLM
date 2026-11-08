@@ -8,9 +8,9 @@ on:
   workflow_run:
     workflows: [train]
     types: [completed]
-  schedule:
-    - cron: "7,37 * * * *"
-    - cron: "7,37 12-14 * * *"
+  # Schedules are off (Paawan 2026-11-07: the soup hf 8f932d7 is final; no more ticks or morning
+  # finals). To resume a loop, restore:
+  #   schedule: [{cron: "7,37 * * * *"}, {cron: "7,37 12-14 * * *"}]
   workflow_dispatch:
     inputs:
       cmd:
